@@ -39,7 +39,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 **TRƯỚC VIẾT CODE — đọc và trả lời 3 câu hỏi (ghi vào reports/postmortem.md sau):**
 
-- [ ] **Câu hỏi 1:** Nếu Region A chết ngay bây giờ, component nào sẽ phát hiện — và bằng cách nào?
+- [x] **Câu hỏi 1:** Nếu Region A chết ngay bây giờ, component nào sẽ phát hiện — và bằng cách nào?
   - Đáp án bạn phải nêu: `/readyz` endpoint (không phải `/healthz`)
   - Lý do: `/healthz` chỉ kiểm tra process còn sống; `/readyz` kiểm tra pool_state + vector count + model weights
 
