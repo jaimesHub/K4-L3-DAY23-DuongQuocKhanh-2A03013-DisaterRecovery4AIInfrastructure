@@ -50,3 +50,41 @@ HTTP/1.1 200 OK
 - De phat hien outage, nen POLL `/readyz`, khong phai `/healthz`
 
 ---
+
+## S2: Cau hoi 2 — Region B co du lieu hay weights khong
+
+**Cau hoi:** Region B hien tai co du lieu hay model weights khong?
+
+**Dap an:** KHONG. Region B hoan toan trong (empty state).
+
+**Bang chung — curl test:**
+
+```bash
+$ curl -s localhost:8002/v1/state
+{"region":"b","pool_state":"warm","weights":false,"count":0,"latest_doc_ts":null,"ts":1791524633.903866}
+
+$ curl -s localhost:8002/readyz
+{"region":"b","ready":false,"reasons":["pool_state=warm","model_weights_missing","vector_db_empty(count=0)"],"pool_state":"warm","vectors":{"count":0,"latest_doc_ts":null},"ts":1791524636.260617}
+```
+
+**Kiem tra file state/region-b:**
+
+```bash
+$ ls -la state/region-b/
+drwxr-xr-x@ 5 jaimes  staff    160 Oct  9 11:58 .
+-rw-r--r--@ 1 jaimes  staff      4 Oct  9 12:03 pool_state      (noi dung: "warm")
+-rw-r--r--@ 1 jaimes  staff  16384 Oct  9 11:58 vectors.sqlite  (empty, count=0)
+drwxr-xr-x@ 2 jaimes  staff     64 Oct  9 11:58 weights         (khong co model.bin)
+
+$ ls -la state/region-b/weights/
+(directory rong)
+```
+
+**Ket luan:**
+- Region B chi co pool_state file, vector DB (empty), va weights directory (khong co model.bin)
+- count = 0 (khong co vector nao)
+- weights = false (model.bin khong ton tai)
+- pool_state = "warm" (chi chuyen sang "full" khi replicate/failover xong)
+- `/readyz` tra 503 vi 3 ly do: pool_state=warm, model_weights_missing, vector_db_empty(count=0)
+
+---

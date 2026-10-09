@@ -43,7 +43,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   - Đáp án bạn phải nêu: `/readyz` endpoint (không phải `/healthz`)
   - Lý do: `/healthz` chỉ kiểm tra process còn sống; `/readyz` kiểm tra pool_state + vector count + model weights
 
-- [ ] **Câu hỏi 2:** Region B hiện tại có dữ liệu hay model weights không?
+- [x] **Câu hỏi 2:** Region B hiện tại có dữ liệu hay model weights không?
   - Lệnh kiểm tra: `curl localhost:8002/v1/state`
   - Kỳ vọng (đã đo ở Bước 0): `count:0`, `weights:false`, `pool_state:warm` (không phải `cold`)
 
