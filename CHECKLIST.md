@@ -47,7 +47,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   - Lệnh kiểm tra: `curl localhost:8002/v1/state`
   - Kỳ vọng (đã đo ở Bước 0): `count:0`, `weights:false`, `pool_state:warm` (không phải `cold`)
 
-- [ ] **Câu hỏi 3:** Nếu flip `edge/active_region` thành `b` ngay bây giờ, users sẽ nhận gì?
+- [x] **Câu hỏi 3:** Nếu flip `edge/active_region` thành `b` ngay bây giờ, users sẽ nhận gì?
   - Lệnh test: `echo b > edge/active_region && curl localhost:8080/v1/infer`
   - Kỳ vọng: HTTP 503; `/readyz` của B liệt kê `reasons: ["pool_state=warm","model_weights_missing","vector_db_empty(count=0)"]`
   - **RESTORE:** `echo a > edge/active_region`

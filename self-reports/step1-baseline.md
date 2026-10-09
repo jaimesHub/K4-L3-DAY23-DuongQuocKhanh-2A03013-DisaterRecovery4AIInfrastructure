@@ -88,3 +88,56 @@ $ ls -la state/region-b/weights/
 - `/readyz` tra 503 vi 3 ly do: pool_state=warm, model_weights_missing, vector_db_empty(count=0)
 
 ---
+
+## S3: Cau hoi 3 — Flip active_region sang b
+
+**Cau hoi:** Neu flip `edge/active_region` sang b ngay bay gio, users se nhan gi?
+
+**Doc edge/proxy.py:**
+- Line 25-31: `resolve()` - dns cache voi TTL=5s (EDGE_TTL_SECONDS)
+- Line 28: Chi doc lai file khi `now - _cache["at"] >= TTL`
+- Line 39-43: Goi `/v1/infer` toi upstream va return proxy response voi `edge_region` field
+
+**Thuc nghiem va ket qua:**
+
+Ban dau:
+```bash
+$ cat edge/active_region
+a
+```
+
+Flip sang b:
+```bash
+$ echo b > edge/active_region
+```
+
+Sau 7s chờ (TTL=5s):
+```bash
+$ curl -s -i localhost:8080/v1/infer
+HTTP/1.1 503 Service Unavailable
+...
+{"edge_region":"b","upstream_status":503,"edge_latency_ms":25.7,"error":"region_not_ready","reasons":["pool_state=warm","model_weights_missing","vector_db_empty(count=0)"],"region":"b"}
+
+$ curl -s localhost:8080/edge/state
+{"active_region":"b","ttl_seconds":5.0,"cache_age_s":2.7}
+```
+
+**Khoi phuc ve a:**
+```bash
+$ printf a > edge/active_region
+$ sleep 7 && curl -s -i localhost:8080/v1/infer
+HTTP/1.1 200 OK
+...
+{"edge_region":"a","upstream_status":200,"edge_latency_ms":30.1,"region":"a","answer":"[a] Ticket #0: khach hoi ve hoa don thang 1, so tien 0d","doc_id":"a-doc-0000",...}
+
+$ cat edge/active_region
+a
+```
+
+**Ket luan:**
+- Khi flip sang b, proxy routing dung sau TTL (5s) expire
+- Region B khong co du lieu → HTTP 503 voi reasons chi ra 3 dieu thi thieu
+- Khoi phuc ve a tro ve HTTP 200 va dung upstream
+- DNS cache (TTL) la yeu to chi ra RTO, users se bi loi trong 5-6 giay sau khi flip
+
+---
