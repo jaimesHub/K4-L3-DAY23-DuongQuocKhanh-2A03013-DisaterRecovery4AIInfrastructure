@@ -52,10 +52,10 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   - Kỳ vọng: HTTP 503; `/readyz` của B liệt kê `reasons: ["pool_state=warm","model_weights_missing","vector_db_empty(count=0)"]`
   - **RESTORE:** `echo a > edge/active_region`
 
-- [ ] **Đọc kỹ 3 file (đừng bỏ qua):**
-  - `serving/app.py` dòng 62-79: `/readyz` logic (pool_state + warmup + weights + vector count)
-  - `edge/proxy.py`: DNS/LB caching logic, EDGE_TTL_SECONDS
-  - `state/snapshot.py` dòng 47-60: RPO computation (docs_lost + rpo_seconds)
+- [x] **Đọc kỹ 3 file (đừng bỏ qua):**
+  - `serving/app.py` dòng 62-80: `/readyz` logic (pool_state + warmup + weights + vector count)
+  - `edge/proxy.py` dòng 25-31: DNS/LB caching logic (resolve() function), EDGE_TTL_SECONDS (line 16)
+  - `state/snapshot.py` dòng 47-64: RPO computation (docs_lost + rpo_seconds)
 
 ---
 
