@@ -35,7 +35,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-## BƯỚC 1 — BASELINE (15 phút) — 0 điểm (học tập) — ✅ HOÀN THÀNH 2026-10-09 05:45 (+07)
+## BƯỚC 1 — BASELINE (15 phút) — 0 điểm (học tập) — ✅ HOÀN THÀNH 2026-10-09 12:46 (+07)
 
 > Evidence: [self-reports/step1-baseline.md](self-reports/step1-baseline.md)
 
