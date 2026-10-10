@@ -386,7 +386,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ## BƯỚC 5 — FILL REPORTS (20 phút) — 20 điểm
 
-### 5a. reports/rto-evidence.md — 10 điểm
+### 5a. reports/rto-evidence.md — 10 điểm — ✅ HOÀN THÀNH
 
 **File cần điền:** `reports/rto-evidence.md`
 
@@ -394,58 +394,56 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 **Điền như sau:**
 
-- [ ] **Section "1. Drill 1 — không có DR":**
+- [x] **Section "1. Drill 1 — không có DR":**
   | Chỉ số | Giá trị | Evidence |
   |---|---|---|
   | t_outage | ISO8601 timestamp từ chaos-events.jsonl:1 | `chaos/chaos-events.jsonl:1` |
-  | Request fail đầu tiên | `+__s` từ first ok:false sau outage | `reports/drill-1-nodr.jsonl:__` |
-  | Request thành công sau | không có | `reports/measure-drill-1.json` |
+  | Request fail đầu tiên | `+__s` từ first ok:false sau outage | `reports/drill-1-nodr.jsonl:17` |
+  | Request thành công sau | không có | `reports/drill-1-nodr.jsonl` |
   | RTO verdict | NO_RECOVERY | `reports/measure-drill-1.json` |
 
-- [ ] **Section "2. Drill 2 — có DR" — 7 mốc:**
-  - t_outage (0s): ISO từ chaos-events.jsonl
-  - User thấy lỗi: dòng ok:false đầu tiên trong drill-2-withdr.jsonl, +X.Xs từ t_outage
-  - Health check phát hiện: dòng `to:UNHEALTHY, region:a` trong health-events.jsonl, +Y.Ys
-  - Snapshot restore xong: dòng `step:2_restore_snapshot` trong failover-events.jsonl, +Z.Zs
-  - Region phụ ready: dòng `step:4_wait_ready` trong failover-events.jsonl, +A.As
-  - DNS cutover: dòng `step:5_dns_cutover` trong failover-events.jsonl, +B.Bs
-  - **RTO đo được: dòng ok:true đầu tiên sau lỗi** (trong drill-2-withdr.jsonl), +C.Cs ← **Đây là RTO cuối cùng**
+- [x] **Section "2. Drill 2 — có DR" — 7 mốc:**
+  - t_outage (0s): `chaos/chaos-events.jsonl:3`
+  - User thấy lỗi: `reports/drill-2-withdr.jsonl:25` (+0.2s)
+  - Health check phát hiện: `reports/health-events.jsonl:2` (+19.4s)
+  - Snapshot restore xong: `reports/failover-events.jsonl:2` (+20.2s)
+  - Region phụ ready: `reports/failover-events.jsonl:4` (+26.3s)
+  - DNS cutover: `reports/failover-events.jsonl:5` (+26.3s)
+  - **RTO đo được:** `reports/drill-2-withdr.jsonl:39` (+28.7s) ← **Đây là RTO cuối cùng**
 
-- [ ] **Section "3. RTO breakdown" — 4 thành phần (BẮTBUỘC, không tuỳ chọn):**
+- [x] **Section "3. RTO breakdown" — 4 thành phần:**
   | Thành phần | Giây | Ghi chú |
   |---|---|---|
-  | Health-check detect floor | `interval_s × threshold` = ? | `reports/health-events.jsonl:X` (xem interval_s + threshold) |
-  | Snapshot restore | `t_2_restore - t_1_verify` = ? | `reports/failover-events.jsonl` (bước 1 đến 2) |
-  | GPU pool warm-up | `waited_s` ở bước 4 = ? | `reports/failover-events.jsonl:Y` (bước 4_wait_ready) |
-  | DNS/LB TTL cache | `t_rto_final - t_dns_cutover` = ? | `reports/drill-2-withdr.jsonl` (first ok:true sau cutover) |
-  | **TỔNG** | sum = ? | **Phải ≈ RTO đo được** |
+  | Health-check detect floor | 15.0 (5s × 3) | `reports/health-events.jsonl:2` (interval_s=5, threshold=3) |
+  | Detection + overhead | 20.13 | Từ kill (`chaos/chaos-events.jsonl:3`) đến failover start (`reports/failover-events.jsonl:1`) |
+  | Snapshot restore | 0.03 | `reports/failover-events.jsonl:1→2` |
+  | GPU pool warm-up | 6.1 | `reports/failover-events.jsonl:4` (waited_s=6.1) |
+  | DNS/LB TTL cache | 2.4 | Từ `reports/failover-events.jsonl:5` đến `reports/drill-2-withdr.jsonl:39` |
+  | **TỔNG** | **28.7s** | ≈ RTO đo được (28.67s ≈ 28.7s) ✓ |
 
-- [ ] **Test — Evidence trỏ đúng file/line:**
+- [x] **Test — Evidence trỏ đúng file/line:**
   ```bash
   pytest tests/test_rto_evidence.py::test_evidence_table_tro_vao_file_that -v
   ```
-  - **Điểm: (bao gồm trong 10 điểm trên)** ✓
+  - ✓ PASSED
 
-- [ ] **Test — Không còn placeholder:**
+- [x] **Test — Không còn placeholder:**
   ```bash
   pytest tests/test_rto_evidence.py::test_evidence_table_da_dien_that -v
   ```
-  - Kỳ vọng: Không có `TEMPLATE`, không có `__`, không có `+__s`
-  - **Điểm: (bao gồm trong 10 điểm trên)** ✓
+  - ✓ PASSED
 
-- [ ] **Test — Con số khớp log (HARD-FAIL nếu sai > 1s):**
+- [x] **Test — Con số khớp log (HARD-FAIL nếu sai > 1s):**
   ```bash
   pytest tests/test_rto_evidence.py::test_so_trong_bang_khop_voi_so_trong_log -v
   ```
-  - Kỳ vọng: RTO trong bảng ≈ RTO tính từ log (sai ≤ 1s), RPO cũng vậy
-  - **Điểm: (bao gồm trong 10 điểm trên)** ✓
+  - ✓ PASSED
 
-- [ ] **Test — Health check config ghi lại:**
+- [x] **Test — Health check config ghi lại:**
   ```bash
   pytest tests/test_rto_evidence.py::test_health_check_interval_duoc_ghi_lai -v
   ```
-  - Kỳ vọng: health_events.jsonl có `interval_s` và `threshold`
-  - **Điểm: (bao gồm trong 10 điểm trên)** ✓
+  - ✓ PASSED
 
 ---
 
