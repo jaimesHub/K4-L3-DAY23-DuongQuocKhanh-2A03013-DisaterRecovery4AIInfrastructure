@@ -105,3 +105,59 @@ tests/test_failover.py::test_failover_khong_cutover_khi_target_chua_ready PASSED
 
 Không có lệch. Code khớp docstring + test.
 
+---
+
+## S3 (3c) — dr/runbook.py
+
+**Thời gian:** 2026-10-10 21:30 (+07)
+
+### Quyết định thiết kế
+
+- **`step(n, name, **kw)` function**:
+  - Ghi JSONL vào reports/runbook-run.jsonl (append mode)
+  - Thêm ts (Unix), iso (ISO8601), step (n), name, + các kw
+  - Print stdout để xem progress
+  - Mkdir reports nếu chưa tồn tại
+
+- **`confirm(auto, msg)` function**:
+  - Nếu auto=True → return True (để CI/--auto chạy tự động)
+  - Nếu auto=False → hỏi user: input("msg (y/N): "), return True nếu gõ 'y'
+  - Bán tự động: operator phải confirm trước failover
+
+- **`run(primary, target, backend, auto)` — 7 bước:**
+  
+  1. **xac_nhan_outage**: Probe primary 3 lần, phải fail tất cả
+  2. **thong_bao_incident**: Ghi ts, lấy t_outage_from_chaos từ chaos-events.jsonl nếu có
+  3. **scale_gpu_pool**: Gọi failover.failover(...) MỘT LẦN DUY NHẤT, emit kết quả (ok + reason)
+  4. **verify_state_replica**: Đọc state/region-<target>/vectors.sqlite + weights, emit vector_count + weights_restored (KHÔNG gọi lại failover)
+  5. **dns_cutover**: Đọc edge/active_region, verify = target (KHÔNG gọi lại failover)
+  6. **verify_golden_signals**: 10 request thật vào http://127.0.0.1:8080/v1/infer, tính p95_ms (95th percentile) + error_rate
+  7. **post_incident**: Tính elapsed_s từ step 2, log guide đo RTO
+
+### Điểm đáng chú ý
+
+1. **Failover gọi MỘT LẦN DUY NHẤT** ở step 3 (bước scale_gpu_pool)
+2. **Bán tự động**: Mặc định hỏi confirm, --auto bỏ qua hỏi
+3. **Step 4-5 chỉ ĐỌC**: Không gọi lại failover, chỉ verify kết quả đã xảy ra
+4. **Golden signals**: 10 request, tính p95 + error rate, không là đo throughput
+
+### Lệnh test
+
+```bash
+pytest tests/test_failover.py -v
+```
+
+### Output
+
+```
+tests/test_failover.py::test_rpo_dem_dung_so_doc_bi_mat PASSED           [ 33%]
+tests/test_failover.py::test_health_checker_can_threshold_lien_tiep PASSED [ 66%]
+tests/test_failover.py::test_failover_khong_cutover_khi_target_chua_ready PASSED [100%]
+
+============================== 3 passed in 0.33s ===============================
+```
+
+### Lệch từ CHECKLIST
+
+Không có lệch. Code khớp docstring.
+

@@ -204,17 +204,17 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 **Implement:**
 
-- [ ] **Hàm `step(n, name, **kw) -> None:`**
+- [x] **Hàm `step(n, name, **kw) -> None:`**
   - Append 1 dòng JSON vào `reports/runbook-run.jsonl`
   - Dòng phải có: `ts` (Unix), `iso` (ISO8601), `step` (số/tên), `name` (tên), + các kw
   - Print ra stdout
   - Ghi chú: Đây là timeline của postmortem
 
-- [ ] **Hàm `confirm(auto: bool, msg: str) -> bool:`**
+- [x] **Hàm `confirm(auto: bool, msg: str) -> bool:`**
   - Nếu `auto=True` → return `True` (không hỏi, tự động chạy)
   - Nếu `auto=False` → hỏi `msg + " (y/N): "` → return True nếu user gõ 'y', False ngược lại
 
-- [ ] **Hàm `run(primary, target, backend, auto) -> dict:`**
+- [x] **Hàm `run(primary, target, backend, auto) -> dict:`**
   - **7 bước** (theo §4 Runbook):
   
   **1️⃣ xac_nhan_outage:**
@@ -257,11 +257,12 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   - Return dict: `{ok:true|false, ...}`
   - File log: `reports/runbook-run.jsonl`
 
-- [ ] **Chạy dry-run (không cần test):**
+- **Chạy dry-run (không cần test, KHÔNG tick — để dành cho Bước 4):**
   ```bash
   python dr/runbook.py --primary a --target b --backend fs --auto
   ```
   - Output: `reports/runbook-run.jsonl` + `reports/failover-events.jsonl` (từ failover step)
+  - **GHI CHÚ:** Dry-run này sẽ thay đổi state/region-b + edge/active_region. Bước 4 PHẢI chạy với 3 service + ingest/replicate chạy nền. Nên để dành dry-run cho Bước 4.
 
 ---
 
