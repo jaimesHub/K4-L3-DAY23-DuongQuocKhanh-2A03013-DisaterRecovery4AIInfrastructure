@@ -46,8 +46,8 @@ wait
 
 | Mốc | Sự kiện | +Giây từ t_outage | Evidence |
 |---|---|---|---|
-| t_outage | Kill region A | 0.0 | chaos/chaos-events.jsonl:2 |
-| t_first_error | Request đầu tiên fail (ok:false) | +0.2s | reports/drill-2-withdr.jsonl:17 |
+| t_outage | Kill region A | 0.0 | chaos/chaos-events.jsonl:3 |
+| t_first_error | Request đầu tiên fail (ok:false) | +0.2s | reports/drill-2-withdr.jsonl:25 |
 | t_health_detect | Health check phát hiện UNHEALTHY | +19.4s | reports/health-events.jsonl:2 |
 | t_dns_cutover | DNS cutover (step 5) | +26.3s | reports/failover-events.jsonl:5 |
 | t_recovered | Request đầu tiên thành công từ B (ok:true) | +28.7s | reports/drill-2-withdr.jsonl:39 |
@@ -152,11 +152,12 @@ tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong PASSED
 
 ### RTO Breakdown (4 thành phần)
 
-1. Detection floor (health-check): **15.0s = 5s × 3** — 52% RTO
-2. Snapshot restore: **0.03s** — < 1% RTO
-3. GPU pool warm-up: **6.1s** — 21% RTO
-4. DNS/TTL cache: **2.4s** — 8% RTO
-**TỔNG: 28.7s** ✓
+1. Detection (kill → failover start): **20.13s** — 70% RTO
+   - Gồm: 15.0s theoretical floor (5s × 3) + 5.13s probe/timeout/poll overhead
+2. Snapshot restore: **0.03s** — 0.1% RTO
+3. GPU pool warm-up: **6.11s** — 21% RTO
+4. DNS/TTL cache: **2.40s** — 8% RTO
+**TỔNG: 28.67s** ≈ **28.7s** ✓
 
 ### Sửa lỗi trước Bước 4 — Hiệu quả
 
@@ -169,8 +170,8 @@ tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong PASSED
 ### Lưu ý cho Bước 5 (reports/rto-evidence.md + reports/postmortem.md)
 
 **Cần copy vào rto-evidence.md:**
-- t_outage: 1791644224.113635 (chaos/chaos-events.jsonl:2)
-- t_first_error: 1791644224.281 (reports/drill-2-withdr.jsonl:17)
+- t_outage: 1791644224.113635 (chaos/chaos-events.jsonl:3)
+- t_first_error: 1791644224.281 (reports/drill-2-withdr.jsonl:25)
 - t_health_detect: 1791644243.479 (reports/health-events.jsonl:2)
 - t_dns_cutover: 1791644250.389 (reports/failover-events.jsonl:5)
 - t_recovered: 1791644252.789 (reports/drill-2-withdr.jsonl:39)
@@ -178,7 +179,7 @@ tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong PASSED
 **Cần copy vào postmortem.md:**
 - RTO: 28.7s < 300s target → GAP = 271.3s
 - RPO: 8.01s < 300s target → GAP = 291.99s
-- Bottleneck: detection floor 15s (52%) + GPU warmup 6.1s (21%)
+- Bottleneck: Detection 20.13s (70% — gồm 15s floor + 5.13s overhead) + GPU warmup 6.11s (21%)
 - Action item: giảm health check interval từ 5s → 3s có thể tiết kiệm ~6s RTO
 
 **Tệp không được commit (`.gitignore`):**
@@ -226,10 +227,12 @@ tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong PASSED
 
 ### Phân tích RTO Breakdown chi tiết
 
-**1. Detection Floor (15.0s) — 52% của RTO:**
-- Health check interval=5s, threshold=3 → sớm nhất phát hiện là 5×3=15s
-- Log: `reports/health-events.jsonl:2` ghi `interval_s:5, threshold:3`
-- Actual: health detected tại +19.4s (sau 15s floor + 4.4s jitter do network polling)
+**1. Detection (20.13s) — 70% của RTO:**
+- Thành phần:
+  - 15.0s theoretical floor: Health check interval=5s, threshold=3 → sớm nhất phát hiện là 5×3=15s
+  - 4.13s additional overhead: Network polling jitter + runbook poll/handoff
+- Health check phát hiện: +19.4s (log: `reports/health-events.jsonl:2`)
+- Failover start: +20.13s (log: `reports/failover-events.jsonl:1` — step 1_verify_target)
 
 **2. Snapshot Restore (0.03s) — < 1% của RTO:**
 - Restore từ filesystem: rất nhanh
@@ -260,3 +263,35 @@ Step 5 (dns_cutover): {"active_region": "b", "cutover_ok": true, ...}
 Step 6 (verify_golden_signals): {"requests_sent": 10, "errors": 1, "p95_ms": 2257.1, "error_rate": 10.0, ...}
 Step 7 (post_incident): {"elapsed_s": 9.0, ...}
 ```
+
+---
+
+## Đính chính sau review
+
+### 3 lỗi chính
+
+1. **chaos/chaos-events.jsonl evidence path — Sai: :2, Đúng: :3**
+   - Cách kiểm: `wc -l chaos/chaos-events.jsonl` (4 dòng); dòng 1-2 = drill-1, dòng 3-4 = drill-2. Dòng 3 có `ts: 1791644224.113635, action: kill` (t_outage drill-2)
+   - Sửa tại: dòng 49 (timeline table), dòng 172 (Lưu ý Bước 5)
+
+2. **reports/drill-2-withdr.jsonl evidence path — Sai: :17, Đúng: :25**
+   - Cách kiểm: `grep -n "ok.*false" reports/drill-2-withdr.jsonl | head -1` → dòng 25 là first ok:false. Seq 24, ts: 1791644224.281, ReadTimeout
+   - Sửa tại: dòng 50 (timeline table), dòng 173 (Lưu ý Bước 5)
+
+3. **RTO breakdown percentages — Sai: 52% floor; Đúng: 70% detection**
+   - Cách kiểm: Tính từ timestamp thật: Detection = 20.13s / 28.67s = 70.2%
+   - Sửa tại: dòng 155-159 (breakdown table), dòng 181 (bottleneck), dòng 229-232 (detailed analysis)
+   - Chi tiết:
+     - Detection KHÔNG phải chỉ 15.0s floor, mà 20.13s (kill → failover start)
+     - 15.0s là thành phần lý thuyết tối thiểu (health floor)
+     - 5.13s là overhead (probe timeout + runbook poll/handoff)
+     - Restore: 0.03s (0.1%)
+     - Warmup: 6.11s (21.3%)
+     - DNS: 2.40s (8.4%)
+     - Tổng: 28.67s ≈ 28.7s ✓
+
+### Không có lỗi khác
+- health-events.jsonl:2 ✓ (detect lúc +19.4s)
+- failover-events.jsonl ✓ (5 bước, timestamps khớp)
+- RTO 28.7s ✓ (measure_rto.py xác nhận)
+- RPO 8.01s / 4 docs ✓ (từ failover step 2)
