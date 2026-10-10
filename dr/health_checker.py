@@ -29,7 +29,10 @@ URL = {"a": "http://127.0.0.1:8001", "b": "http://127.0.0.1:8002"}
 
 
 def probe(region: str, timeout: float) -> tuple[bool, str]:
-    """Probe /readyz endpoint. Return (ready, reason)."""
+    """Probe /readyz endpoint. Return (ready, reason).
+
+    /readyz trả 'reasons' (list), không 'reason' (string) — join chúng thành reason.
+    """
     url = f"{URL[region]}/readyz"
     try:
         resp = httpx.get(url, timeout=timeout)
@@ -37,7 +40,9 @@ def probe(region: str, timeout: float) -> tuple[bool, str]:
             try:
                 data = resp.json()
                 ready = data.get("ready", False)
-                reason = data.get("reason", "")
+                # /readyz trả 'reasons' (list) chứ không 'reason' (string)
+                reasons = data.get("reasons", [])
+                reason = "; ".join(reasons) if reasons else ""
                 return (ready, reason)
             except Exception as e:
                 return (False, f"json_error: {e}")
@@ -70,16 +75,19 @@ def run(interval: float, timeout: float, threshold: int, duration: float, out: p
 
             # Check if we need to transition state
             new_state = "UNHEALTHY" if consecutive_fails[region] >= threshold else "HEALTHY"
-            if new_state != state[region] and new_state == "UNHEALTHY":
-                # Only emit when transitioning TO UNHEALTHY (state change from HEALTHY to UNHEALTHY)
+            # Ghi state_change MỖI LẦN ĐỔI TRẠNG THÁI (vào UNHEALTHY hoặc về HEALTHY)
+            if new_state != state[region]:
                 ts = time.time()
+                # Lý do: nếu chuyển sang UNHEALTHY thì dùng reason từ probe,
+                # nếu quay về HEALTHY thì dùng "recovered"
+                event_reason = reason if new_state == "UNHEALTHY" else "recovered"
                 event = {
                     "ts": ts,
                     "iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(ts)),
                     "event": "state_change",
                     "region": region,
                     "to": new_state,
-                    "reason": reason if not ready else "recovered",
+                    "reason": event_reason,
                     "interval_s": interval,
                     "threshold": threshold,
                     "consecutive_fails": consecutive_fails[region]
