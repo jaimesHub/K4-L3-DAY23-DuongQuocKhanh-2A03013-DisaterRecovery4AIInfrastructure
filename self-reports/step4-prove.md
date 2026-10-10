@@ -83,12 +83,30 @@ wait
 - reports/measure-drill-2.json: valid=true, rto_verdict=PASS
 - reports/runbook-run.jsonl, reports/failover-events.jsonl, reports/health-events.jsonl: có sẵn
 
-### Pytest test results (từ lần chạy drill này)
+### C3 — Pytest test results (RTO valid + timestamps)
 
+```bash
+pytest tests/test_rto_evidence.py::test_drill2_hop_le \
+        tests/test_rto_evidence.py::test_rto_do_duoc_bang_timestamp \
+        tests/test_rto_evidence.py::test_chaos_khong_giet_ca_hai_region \
+        tests/test_rto_evidence.py::test_health_check_interval_duoc_ghi_lai -v
 ```
-pytest tests/test_rto_evidence.py::test_drill2_hop_le -v
+
+**Output:**
 ```
-Kỳ vọng: `test_drill2_hop_le` PASSED (valid=true, warnings=[])
+tests/test_rto_evidence.py::test_drill2_hop_le PASSED
+tests/test_rto_evidence.py::test_rto_do_duoc_bang_timestamp PASSED
+tests/test_rto_evidence.py::test_chaos_khong_giet_ca_hai_region PASSED
+tests/test_rto_evidence.py::test_health_check_interval_duoc_ghi_lai PASSED
+
+4 passed in 0.03s
+```
+
+**Kết luận:**
+- ✓ test_drill2_hop_le: valid=true, warnings=[] (RTO hợp lệ, không có warning t_cutover < t_detect)
+- ✓ test_rto_do_duoc_bang_timestamp: rto_measured_s!=null, recovered_by_region!=killed_region
+- ✓ test_chaos_khong_giet_ca_hai_region: forced_both=false, other_alive=true
+- ✓ test_health_check_interval_duoc_ghi_lai: interval_s=5, threshold=3, detect_floor_s=15.0
 
 ## C2 — Đo RTO từ log
 
