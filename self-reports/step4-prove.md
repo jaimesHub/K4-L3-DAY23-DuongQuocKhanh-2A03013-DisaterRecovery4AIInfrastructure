@@ -108,6 +108,25 @@ tests/test_rto_evidence.py::test_health_check_interval_duoc_ghi_lai PASSED
 - ✓ test_chaos_khong_giet_ca_hai_region: forced_both=false, other_alive=true
 - ✓ test_health_check_interval_duoc_ghi_lai: interval_s=5, threshold=3, detect_floor_s=15.0
 
+### C4 — Pytest test results (RPO count + không ước lượng)
+
+```bash
+pytest tests/test_failover.py::test_rpo_dem_dung_so_doc_bi_mat \
+        tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong -v
+```
+
+**Output:**
+```
+tests/test_failover.py::test_rpo_dem_dung_so_doc_bi_mat PASSED
+tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong PASSED
+
+2 passed in 0.06s
+```
+
+**Kết luận:**
+- ✓ test_rpo_dem_dung_so_doc_bi_mat: snapshot.rpo() tính đúng số doc bị mất (4 docs)
+- ✓ test_rpo_duoc_do_chu_khong_uoc_luong: rpo_at_restore_s=8.01 (từ log, không ước lượng)
+
 ## C2 — Đo RTO từ log
 
 ### JSON measure-drill-2.json (full)
