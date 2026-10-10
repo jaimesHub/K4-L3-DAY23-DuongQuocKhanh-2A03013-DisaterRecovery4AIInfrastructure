@@ -127,6 +127,64 @@ tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong PASSED
 - ✓ test_rpo_dem_dung_so_doc_bi_mat: snapshot.rpo() tính đúng số doc bị mất (4 docs)
 - ✓ test_rpo_duoc_do_chu_khong_uoc_luong: rpo_at_restore_s=8.01 (từ log, không ước lượng)
 
+---
+
+## C5 — Tổng kết BƯỚC 4
+
+### Bảng Test Results
+
+| Test | Status | Ghi chú |
+|---|---|---|
+| test_drill2_hop_le | ✓ PASSED | valid=true, warnings=[] |
+| test_rto_do_duoc_bang_timestamp | ✓ PASSED | rto_measured_s=28.7s |
+| test_chaos_khong_giet_ca_hai_region | ✓ PASSED | Không double outage |
+| test_health_check_interval_duoc_ghi_lai | ✓ PASSED | interval_s=5, threshold=3 |
+| test_rpo_dem_dung_so_doc_bi_mat | ✓ PASSED | docs_lost=4 |
+| test_rpo_duoc_do_chu_khong_uoc_luong | ✓ PASSED | rpo_at_restore_s=8.01 |
+
+### Số liệu chính — RTO/RPO
+
+| Chỉ số | Giá trị | So với target | Verdict |
+|---|---|---|---|
+| RTO đo được | 28.7s | < 300s target | ✓ PASS |
+| RPO đo được | 8.01s / 4 docs | < 300s target | ✓ PASS |
+| Requests failed | 14 / 156 | 9% failure rate | ✓ PASS |
+
+### RTO Breakdown (4 thành phần)
+
+1. Detection floor (health-check): **15.0s = 5s × 3** — 52% RTO
+2. Snapshot restore: **0.03s** — < 1% RTO
+3. GPU pool warm-up: **6.1s** — 21% RTO
+4. DNS/TTL cache: **2.4s** — 8% RTO
+**TỔNG: 28.7s** ✓
+
+### Sửa lỗi trước Bước 4 — Hiệu quả
+
+**Vấn đề:** runbook.py cắt DNS trước khi health_checker phát hiện outage (t_cutover < t_detect)
+- Trước sửa: failover ~13-15s → cutover ~15s, health detect ~17s → warning "t_cutover < t_detect"
+- Sau sửa: runbook chờ health_checker xác nhận UNHEALTHY (tối đa 60s) → t_cutover (26.3s) >= t_detect (19.4s) → NO WARNING ✓
+
+**Kết quả:** test_drill2_hop_le PASSED vì warnings=[] 
+
+### Lưu ý cho Bước 5 (reports/rto-evidence.md + reports/postmortem.md)
+
+**Cần copy vào rto-evidence.md:**
+- t_outage: 1791644224.113635 (chaos/chaos-events.jsonl:2)
+- t_first_error: 1791644224.281 (reports/drill-2-withdr.jsonl:17)
+- t_health_detect: 1791644243.479 (reports/health-events.jsonl:2)
+- t_dns_cutover: 1791644250.389 (reports/failover-events.jsonl:5)
+- t_recovered: 1791644252.789 (reports/drill-2-withdr.jsonl:39)
+
+**Cần copy vào postmortem.md:**
+- RTO: 28.7s < 300s target → GAP = 271.3s
+- RPO: 8.01s < 300s target → GAP = 291.99s
+- Bottleneck: detection floor 15s (52%) + GPU warmup 6.1s (21%)
+- Action item: giảm health check interval từ 5s → 3s có thể tiết kiệm ~6s RTO
+
+**Tệp không được commit (`.gitignore`):**
+- reports/runbook-run.jsonl → nội dung đã dán trong báo cáo
+- reports/measure-drill-2.json → nội dung đã dán trong báo cáo
+
 ## C2 — Đo RTO từ log
 
 ### JSON measure-drill-2.json (full)

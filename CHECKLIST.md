@@ -321,11 +321,13 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-## BƯỚC 4 — PROVE & COLLECT EVIDENCE (20 phút) — 20 điểm
+## BƯỚC 4 — PROVE & COLLECT EVIDENCE — ✅ HOÀN THÀNH 2026-10-10 21:59 (+07)
+
+> Evidence: [self-reports/step4-prove.md](self-reports/step4-prove.md)
 
 **⚠️ BƯỚC QUAN TRỌNG: Phải run ingest + replicate TRƯỚC tấn công, nếu không failover.py sẽ die ở step 2_restore_snapshot.**
 
-- [ ] **Khởi động ingest + replication (chạy nền):**
+- [x] **Khởi động ingest + replication (chạy nền):**
   ```bash
   python3 state/ingest.py --region a --rate 0.5 --duration 150 &
   python3 state/replicate.py --every 30 --duration 150 --backend fs &
@@ -333,8 +335,9 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   ```
   - Output: `reports/replication.jsonl` (log mỗi cycle replicate)
   - Ghi chú: `replicate.py` cần ≥ 1 lần ghi snapshot thành công, nếu không `failover.py` sẽ không có snapshot để restore
+  - ✓ Đã chạy, snapshot tạo thành công
 
-- [ ] **Chạy full drill với DR:**
+- [x] **Chạy full drill với DR:**
   ```bash
   python3 loadgen/traffic.py --duration 100 --rps 2 --out reports/drill-2-withdr.jsonl &
   python3 dr/health_checker.py --interval 5 --threshold 3 --duration 100 --out reports/health-events.jsonl &
@@ -344,39 +347,39 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   wait
   ```
   - Output files:
-    - `reports/drill-2-withdr.jsonl` — every request timestamp + ok/fail
-    - `reports/health-events.jsonl` — health check state changes
-    - `reports/failover-events.jsonl` — 5 failover steps
-    - `reports/runbook-run.jsonl` — 7 runbook steps
-    - `chaos/chaos-events.jsonl` — kill event timestamp
+    - `reports/drill-2-withdr.jsonl` — 156 requests, every request timestamp + ok/fail ✓
+    - `reports/health-events.jsonl` — health check state changes ✓
+    - `reports/failover-events.jsonl` — 5 failover steps ✓
+    - `reports/runbook-run.jsonl` — 7 runbook steps (file .gitignored)
+    - `chaos/chaos-events.jsonl` — kill event timestamp ✓
 
-- [ ] **Đo RTO từ log (lần đầu xem kết quả):**
+- [x] **Đo RTO từ log (lần đầu xem kết quả):**
   ```bash
   python3 tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl --target-rto 300
   ```
-  - Output: `reports/measure-drill-2.json` (kết quả tính toán RTO/RPO)
-  - Kỳ vọng: `rto_verdict: PASS`, `rto_measured_s < 300`, `valid: true`
+  - Output: `reports/measure-drill-2.json` (kết quả tính toán RTO/RPO) — file .gitignored
+  - ✓ rto_verdict: PASS, rto_measured_s: 28.7, valid: true, warnings: []
 
-- [ ] **Test — RTO ≤ 300s:**
+- [x] **Test — RTO ≤ 300s:**
   ```bash
   pytest tests/test_rto_evidence.py::test_drill2_hop_le -v
   ```
-  - Kỳ vọng: `valid=true`, `warnings=[]` (empty list)
+  - ✓ PASSED: valid=true, warnings=[] (empty list)
   - **Điểm: 20 điểm** ✓
 
-- [ ] **Test — RTO đo từ timestamp thật:**
+- [x] **Test — RTO đo từ timestamp thật:**
   ```bash
   pytest tests/test_rto_evidence.py::test_rto_do_duoc_bang_timestamp -v
   ```
-  - Kỳ vọng: `rto_measured_s` không null, recovered_by_region != killed_region
+  - ✓ PASSED: rto_measured_s=28.7, recovered_by_region=b != killed_region=a
   - **Điểm: (bao gồm trong 20 điểm trên)** ✓
 
-- [ ] **Test — RPO đo (seconds + documents):**
+- [x] **Test — RPO đo (seconds + documents):**
   ```bash
   pytest tests/test_failover.py::test_rpo_dem_dung_so_doc_bi_mat -v
   pytest tests/test_rto_evidence.py::test_rpo_duoc_do_chu_khong_uoc_luong -v
   ```
-  - Kỳ vọng: `rpo_at_restore_s` != null, `docs_lost` != null
+  - ✓ PASSED: rpo_at_restore_s=8.01, docs_lost=4
   - **Điểm: 10 điểm** ✓
 
 ---
