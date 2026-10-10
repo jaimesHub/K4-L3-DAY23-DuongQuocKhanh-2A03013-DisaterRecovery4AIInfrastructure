@@ -56,11 +56,11 @@ wait
 
 | Thành phần | Giây | Ghi chú | Evidence |
 |---|---|---|---|
-| Detection floor (health-check) | 15.0 = 5s × 3 | interval × threshold | reports/health-events.jsonl:2 `interval_s:5, threshold:3` |
+| Detection (kill → failover start) | 20.13 = t_verify_target - t_outage | Health floor 15s + overhead 5.13s | reports/failover-events.jsonl:1 (1791644244.245) |
 | Snapshot restore | 0.03 = t_2 - t_1 | Restore từ filesystem | reports/failover-events.jsonl:1→2 (1791644244.245 → 1791644244.275) |
-| GPU pool warm-up | 6.1s | Phần lớn thời gian ở step 4_wait_ready | reports/failover-events.jsonl:4 `waited_s:6.1` |
-| DNS/TTL cache | 2.4 = t_recovered - t_dns_cutover | Client cache EDGE_TTL_SECONDS | reports/drill-2-withdr.jsonl:39 (1791644250.389 → 1791644252.789) |
-| **TỔNG** | **28.7s** | Phải ≈ RTO đo được | reports/measure-drill-2.json |
+| GPU pool warm-up | 6.11s | Phần lớn thời gian ở step 4_wait_ready | reports/failover-events.jsonl:4 `waited_s:6.1` |
+| DNS/TTL cache | 2.40 = t_recovered - t_dns_cutover | Client cache EDGE_TTL_SECONDS | reports/drill-2-withdr.jsonl:39 (1791644252.79165) |
+| **TỔNG** | **28.67s ≈ 28.7s** | Phải ≈ RTO đo được | reports/measure-drill-2.json |
 
 ### Chú thích thiết kế
 
