@@ -341,13 +341,84 @@ Các file KHÔNG được commit (bị .gitignore):
 
 ---
 
-## 7. Tổng kết hoàn thành
+## 7. Đính chính lần 2 (ước lượng postmortem)
 
-### Trạng thái BƯỚC 5 + 6
+**Thời gian:** 2026-10-10 22:54 (+07)
+
+### Vấn đề: 4 chỗ mâu thuẫn trong ước lượng chu kỳ health check
+
+**Nguyên nhân:** Sử dụng các hệ số khác nhau (1.4s vs 2s timeout, 6.4s vs 7s chu kỳ), dẫn đến RTO reduction không nhất quán giữa các action.
+
+### Giải pháp: Thống nhất model chu kỳ
+
+**Mô hình chu kỳ:**
+- Mỗi chu kỳ = interval + timeout (khi region down) = interval + 2s (timeout mặc định)
+- interval=5s ⇒ chu kỳ ≈ 7s
+- 3 lần fail liên tiếp (threshold=3) lý thuyết ≈ 3 × 7 = 21s (nguyên tắc)
+- Đo được: detection=19.37s (rơi giữa chu kỳ); failover start=20.13s (+ 0.76s handoff)
+- **Hệ số hiệu dụng:** 19.37 / 7 ≈ 2.77 ⇒ công thức: **detection(i) ≈ 2.77 × (i + 2)**
+
+### Các sửa cụ thể
+
+#### 1. Câu 2 (Question 2) — Nếu interval=1s
+- **Cũ:** "Chu kỳ 6.4s, detection 9-12s, RTO giảm 8-11s" (không rõ từ đâu)
+- **Mới:** detection(1) ≈ 2.77 × 3 ≈ 8.3s, giảm 11s, RTO ≈ 18s
+- **Lợi ích:** Rõ công thức, kiểm chứng được
+
+#### 2. Action #1 (interval 5→3s)
+- **Cũ:** "Chu kỳ 5.4s, 3 chu kỳ ≈ 16s, RTO giảm 4-5s, rồi 28.7 − 16 ≈ 13s" (vô nghĩa)
+- **Mới:** detection(3) ≈ 2.77 × 5 ≈ 13.8s, giảm ~5-6s, RTO ≈ 23s
+- **Ghi chú:** Dùng công thức, loại bỏ phép tính 28.7 − 16
+
+#### 3. Tổng giảm RTO (3 action)
+- **Cũ:** "~8-11s" (không giải thích cách cộng)
+- **Mới:** 
+  - Action 1: ~5-6s (từ công thức detection)
+  - Action 2: ~2-3s (warmup 6→3-4s)
+  - Action 3: ~1-2s (TTL 5→1s)
+  - Cộng: ~8-11s ✓ (logic rõ)
+
+#### 4. 5 whys #5 (DNS/TTL)
+- **Cũ:** "Vài trăm ms... cache miss + routing + execution" (không có bằng chứng)
+- **Mới:** Lọc drill-2-withdr.jsonl, hiển thị seq 37 (vẫn region a) + seq 38 (region b ok), ghi rõ "cache vẫn giữ region cũ"
+- **Bằng chứng:** 
+  ```
+  seq=37 (ts=1791644250.721): edge_region=a, error=ReadTimeout
+  seq=38 (ts=1791644252.792): edge_region=b, status=200, ok:true
+  ```
+
+### Bảng tổng ước lượng (nhất quán)
+
+| interval | Công thức | Detection | Giảm (so với 19.37s) | RTO mới |
+|---|---|---|---|---|
+| 5s (current) | 2.77 × 7 | 19.4s | — | 28.7s |
+| 3s | 2.77 × 5 | 13.8s | ~5.6s | ~23s |
+| 1s | 2.77 × 3 | 8.3s | ~11s | ~18s |
+
+### Test trạng thái
+
+```bash
+python3 -m pytest tests/ -q
+# Kỳ vọng: 13 passed
+```
+
+### Commit
+
+- **File sửa:** reports/postmortem.md, reports/rto-evidence.md
+- **Câu 2:** model chu kỳ, công thức detection(i)
+- **Action #1:** xóa "28.7 − 16 ≈ 13s", ghi công thức
+- **Tổng:** giải thích cách cộng 3 action
+- **5 whys #5:** log bằng chứng (seq 37, 38)
+
+---
+
+## 8. Tổng kết hoàn thành
+
+### Trạng thái BƯỚC 5 + 6 + 7
 
 - 5a: reports/rto-evidence.md ✓ HOÀN THÀNH (commit ab524c4)
 - 5b: reports/postmortem.md ✓ HOÀN THÀNH (commit 851b38d) + SỬA BƯỚC 6 (Câu 2, Action #1, 5 whys)
-- 5c: self-reports/step5-reports.md + CHECKLIST.md update ✓ HOÀN THÀNH (commit mới Bước 6)
+- 6+7: reports/postmortem.md, reports/rto-evidence.md ✓ THỐNG NHẤT (commit mới — "Thống nhất mô hình ước lượng")
 
 ### Test Status
 

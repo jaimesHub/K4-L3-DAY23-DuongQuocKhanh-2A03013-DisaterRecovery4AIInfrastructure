@@ -38,8 +38,9 @@ Mỗi con số dưới đây đều được truy vết từ một dòng log th�
 | DNS/LB TTL cache | 2.40 | Từ `reports/failover-events.jsonl:5` đến `reports/drill-2-withdr.jsonl:39` | Hạ EDGE_TTL_SECONDS từ 5 xuống 1s |
 | **TỔNG** | **28.67s ≈ 28.7s** | ✓ Khớp với RTO đo được | **Bottleneck: Detection (70%) + Warmup (21%)** |
 
-**Ghi chú về detect floor lý thuyết:**
-- Health check interval = 5s, threshold = 3 → detect floor lý thuyết = 5 × 3 = 15.0s
-- 15.0s này **đã được tính vào** Detection 20.13s (phần đầu của detection phase)
-- 5.13s còn lại = probe timeout + runbook confirm + handoff lag
-- **Không cộng 15.0s riêng biệt** vào tổng RTO (sẽ thành 43.7s, sai)
+**Ghi chú về detect floor:**
+- Health check model: mỗi chu kỳ = interval + probe timeout (khi region down) ≈ 5 + 2 = 7s
+- 3 lần fail liên tiếp (threshold=3) lý thuyết ≈ 21s, nhưng rơi giữa chu kỳ → 19.37s đo được
+- Công thức: detection(i) ≈ 2.77 × (i + 2) với i = interval (giây)
+- 15.0s (5×3) là "detect floor cơ bản" nhưng **không dùng** trong tổng RTO; thay vào đó dùng detection thực tế 19.37s (+ 0.76s handoff) ⇒ failover start 20.13s
+- **Cộng thành phần:** 20.13 (detection+handoff) + 0.03 (snapshot) + 6.11 (warmup) + 2.40 (DNS cache) = 28.67s ✓
