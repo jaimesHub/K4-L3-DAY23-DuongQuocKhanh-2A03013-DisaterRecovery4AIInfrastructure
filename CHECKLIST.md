@@ -447,7 +447,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-### 5b. reports/postmortem.md — 10 điểm
+### 5b. reports/postmortem.md — 10 điểm — ✅ HOÀN THÀNH
 
 **File cần điền:** `reports/postmortem.md`
 
@@ -455,50 +455,43 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 **Điền theo template §4:**
 
-- [ ] **Section "1. Timeline" — 5 sự kiện:**
+- [x] **Section "1. Timeline" — 5 sự kiện:**
   | ISO time | Sự kiện | Evidence |
   |---|---|---|
-  | `t_outage` | Outage bắt đầu (kill signal) | `chaos/chaos-events.jsonl:__` |
-  | `t_first_error` | User đầu tiên bị ảnh hưởng (ok:false) | `reports/drill-2-withdr.jsonl:__` |
-  | `t_health_alert` | Health check phát hiện UNHEALTHY | `reports/health-events.jsonl:__` |
-  | `t_operator_confirm` | Operator confirm cutover (runbook step 2) | `reports/runbook-run.jsonl:__` |
-  | `t_resolved` | Resolved (first ok:true từ region phụ) | `reports/drill-2-withdr.jsonl:__` |
-  - Mỗi ô phải có evidence path:line
+  | 2026-10-10T14:57:04 | Outage bắt đầu (kill signal) | `chaos/chaos-events.jsonl:3` |
+  | 2026-10-10T14:57:04 | User đầu tiên bị ảnh hưởng (ok:false) | `reports/drill-2-withdr.jsonl:25` |
+  | 2026-10-10T14:57:23 | Health check phát hiện UNHEALTHY | `reports/health-events.jsonl:2` |
+  | 2026-10-10T14:57:30 | DNS cutover (failover step 5) | `reports/failover-events.jsonl:5` |
+  | 2026-10-10T14:57:33 | Resolved (first ok:true từ region b) | `reports/drill-2-withdr.jsonl:39` |
 
-- [ ] **Section "2. RTO/RPO vs Target — gap analysis":**
-  - RTO mục tiêu: 300s (từ GUIDE §1)
-  - RTO đo được: `__s` (từ measure-drill-2.json)
-  - Gap: `__s` (mục tiêu - đo được)
-  - RPO mục tiêu: 300s
-  - RPO đo được: `__s` / `__` doc bị mất
-  - Gap: `__s`
-  - **Bước tốn nhiều giây nhất:** `____` (health-check detect floor? restore? warmup? TTL cache?) — vì sao?
+- [x] **Section "2. RTO/RPO vs Target — gap analysis":**
+  - RTO mục tiêu: 300s | RTO đo được: 28.7s | Gap: 271.3s (vượt quá được)
+  - RPO mục tiêu: 300s | RPO đo được: 8.01s / 4 docs | Gap: 291.99s (vượt quá được)
+  - **Bước tốn nhiều giây nhất:** Detection (20.13s = 70% RTO) — gồm 15s floor (5s × 3) + 5.13s overhead
 
-- [ ] **Section "3. Root cause (5 whys)" — Blameless:**
-  - KHÔNG viết "vì tôi chạy chaos script"
-  - ĐỌC: "nếu đây là outage thật (chứ không phải mô phỏng), bước nào trong runbook của tôi sẽ thất bại?"
-  - Ví dụ: "health check detection floor là 15s vì interval=5s × threshold=3 → phải poll 3 lần liên tiếp fail"
-  - Ví dụ: "snapshot restore mất 2s vì phải đọc SQLite từ disk + copy weights file"
+- [x] **Section "3. Root cause (5 whys)" — Blameless:**
+  - Detection floor 15s: interval=5s × threshold=3 để chống flapping từ network jitter
+  - Threshold=3: xác nhận 3 lần fail liên tiếp để chắc outage thật (không transient timeout)
+  - GPU warm-up 6s: WARMUP_SECONDS hard-coded, bao gồm GPU kernel compile + model load từ disk
+  - DNS TTL cache 2.4s: EDGE_TTL_SECONDS=5s, client không liền thấy routing change
 
-- [ ] **Section "4. Action items" — Owner + Deadline + Impact:**
+- [x] **Section "4. Action items" — Owner + Deadline + Impact:**
   | # | Action | Owner | Deadline | Giảm RTO (s) |
   |---|---|---|---|---|
-  | 1 | Giảm health check interval từ 5s → 3s? | SRE | 1 tuần | 4–5s |
-  | 2 | ...? | ? | ? | ? |
-  - Ghi chú: Mỗi action phải có owner cụ thể (không phải "team")
+  | 1 | Giảm health check interval từ 5s → 3s | SRE/Infra | 1 tuần | 5-6s |
+  | 2 | Tối ưu GPU warm-up: hạ WARMUP_SECONDS từ 6s → 3-4s | Serving/ML Ops | 2 tuần | 2-3s |
+  | 3 | Hạ DNS TTL cache từ 5s → 1s | Networking/Edge | 3 ngày | 1-2s |
 
-- [ ] **Section "5. Ba câu hỏi bắt buộc trả lời":**
-  1. `interval × threshold` của bạn = `__s` (e.g., 5 × 3 = 15s). Nó chiếm `__`% RTO? (e.g., 15/28 = 53%)
-  2. Nếu hạ interval xuống 1s, RTO giảm mấy giây — và bạn trả giá gì? (Gợi ý: flapping risk từ network jitter)
-  3. Nếu outage kéo dài 6 giờ và region chính mất dữ liệu vĩnh viễn, `docs_lost` của bạn có nghĩa gì với khách hàng?
-     - (Cần suy nghĩ: RPO tiêu chuẩn, SLA commitment, customer impact)
+- [x] **Section "5. Ba câu hỏi bắt buộc trả lời":**
+  1. `interval × threshold` = 5 × 3 = **15.0s** lý thuyết; **20.13s** thực tế; chiếm **70%** RTO
+  2. Hạ interval xuống 1s → detect floor = 3s → RTO giảm ~5-6s (22-23s) nhưng trade-off: flapping risk từ network jitter, CPU/I/O overhead từ 2 poll/s × 2 region
+  3. `docs_lost=4` → 4 records không sẵn có ở region phụ; nếu region chính mất vĩnh viễn → 4 docs vĩnh viễn mất. Mitigation: increase replication frequency → 10s (RPO tuân thủ < 1 min SLA) hoặc implement dual-write/WAL
 
-- [ ] **Test — Postmortem đủ yếu tố:**
+- [x] **Test — Postmortem đủ yếu tố:**
   ```bash
   pytest tests/test_rto_evidence.py::test_postmortem_co_gap_analysis -v
   ```
-  - Kỳ vọng: Có `rto`, `rpo`, `gap`, `action item` (case-insensitive)
-  - **Điểm: 10 điểm** ✓
+  - ✓ PASSED: Có `rto`, `rpo`, `gap`, `action item`
 
 ---
 
