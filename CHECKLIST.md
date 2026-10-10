@@ -148,12 +148,12 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 **Implement:**
 
-- [ ] **Hàm `emit(**kw) -> None:`**
+- [x] **Hàm `emit(**kw) -> None:`**
   - Append 1 dòng JSON (+ `ts` = Unix timestamp, `iso` = ISO8601) vào `reports/failover-events.jsonl`
   - Print ra stdout
   - Ghi chú: Không overwrite file, phải append
 
-- [ ] **Hàm `failover(target: str, backend: str, wait: float) -> dict:`**
+- [x] **Hàm `failover(target: str, backend: str, wait: float) -> dict:`**
   - 5 bước, **ĐÚNG THỨ TỰ NÀY**:
   
   **1️⃣ step 1_verify_target:**
@@ -187,7 +187,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   
   - Return `{ok:true, ...}` nếu tất cả 5 bước thành công; `{ok:false, reason:...}` nếu abort
 
-- [ ] **Test — không cutover nếu target chưa ready:**
+- [x] **Test — không cutover nếu target chưa ready:**
   ```bash
   pytest tests/test_failover.py::test_failover_khong_cutover_khi_target_chua_ready -v
   ```
