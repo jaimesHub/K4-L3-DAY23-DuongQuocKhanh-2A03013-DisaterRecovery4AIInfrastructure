@@ -67,8 +67,7 @@ def run(primary: str, target: str, backend: str, auto: bool) -> dict:
     LOG.parent.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Xác nhận outage
-    step(1, "xac_nhan_outage")
-    # Probe primary 2-3 lần, phải fail tất cả
+    # Probe primary tối đa 3 lần
     fails = 0
     for _ in range(3):
         try:
@@ -80,7 +79,9 @@ def run(primary: str, target: str, backend: str, auto: bool) -> dict:
             fails += 1
         time.sleep(0.1)
 
-    step(1, "xac_nhan_outage", alive=fails == 3)
+    # Ghi ĐÚNG 1 dòng bước 1 SAU khi probe
+    # alive=True nếu có lần nào ready (fails=0), False nếu cả 3 lần fail (fails=3)
+    step(1, "xac_nhan_outage", alive=(fails == 0), probes_failed=fails)
 
     # Step 2: Thông báo incident
     t_outage_from_chaos = None

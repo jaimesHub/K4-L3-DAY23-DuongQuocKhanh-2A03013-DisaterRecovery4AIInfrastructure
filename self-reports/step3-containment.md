@@ -163,6 +163,178 @@ Không có lệch. Code khớp docstring.
 
 ---
 
+## Sửa lỗi sau review — runbook.py (alive đảo ngược, ghi bước 1 hai lần)
+
+**Thời gian sửa:** 2026-10-10 22:52 (+07)
+
+### Lỗi phát hiện
+
+**Vị trí:** `dr/runbook.py`, bước 1 `xac_nhan_outage` (dòng 70–83)
+
+**Triệu chứng:**
+1. Ghi 2 dòng bước 1 thay vì 1 dòng:
+   - Dòng 1: `step(1, "xac_nhan_outage")` ghi trước khi probe, không có kết quả
+   - Dòng 2: `step(1, "xac_nhan_outage", alive=fails == 3)` ghi sau khi probe
+   
+2. Logic alive bị đảo ngược:
+   - Code ghi `alive=fails == 3`
+   - Khi `fails=3` (cả 3 probe fail) → `alive=True` ❌
+   - Khi `fails=0` (có probe thành công) → `alive=False` ❌
+   - Đúng phải là: `alive=True` khi có probe succeeds, `alive=False` khi tất cả fail
+
+**Tác động:** 
+- Postmortem đọc alive=true dù region A chết, dẫn hiểu sai tình huống
+- log khô sô (2 dòng thay 1 dòng)
+
+### Cách sửa
+
+**Thay đổi:**
+```python
+# Cũ: 2 dòng step, logic alive đảo ngược
+step(1, "xac_nhan_outage")  # ← dòng rỗng, không cần
+fails = 0
+for _ in range(3):
+    ...
+step(1, "xac_nhan_outage", alive=fails == 3)  # ← logic sai
+
+# Mới: 1 dòng step, logic alive đúng
+fails = 0
+for _ in range(3):
+    ...
+step(1, "xac_nhan_outage", alive=(fails == 0), probes_failed=fails)
+```
+
+**Chi tiết:**
+1. Xoá dòng `step(1, "xac_nhan_outage")` đầu tiên
+2. Đổi `alive=fails == 3` thành `alive=(fails == 0)` (True khi any probe succeeds)
+3. Thêm field `probes_failed=fails` để ghi số lần fail
+
+### Kiểm chứng
+
+**Test script:**
+```python
+# Test 1: All 3 probes fail
+httpx.get = mock_fail  # raises ConnectError
+# Expected: alive=False, probes_failed=3
+# Actual: ✓ CORRECT
+
+# Test 2: First probe succeeds
+httpx.get = mock_success  # returns 200 + ready=True
+# Expected: alive=True, probes_failed=0
+# Actual: ✓ CORRECT
+```
+
+**Output:**
+```
+=== TEST 1: All 3 probes fail ===
+Lines written: 1, Step 1 events: 1
+Event: alive=False, probes_failed=3
+✓ CORRECT: alive=False, probes_failed=3 when all fail
+
+=== TEST 2: First probe succeeds ===
+Lines written: 1, Step 1 events: 1
+Event: alive=True, probes_failed=0
+✓ CORRECT: alive=True, probes_failed=0 when succeeds
+```
+
+**pytest:**
+```
+tests/test_failover.py::test_rpo_dem_dung_so_doc_bi_mat PASSED           [ 33%]
+tests/test_failover.py::test_health_checker_can_threshold_lien_tiep PASSED [ 66%]
+tests/test_failover.py::test_failover_khong_cutover_khi_target_chua_ready PASSED [100%]
+============================== 3 passed in 0.38s ===============================
+```
+
+---
+
+## Sửa lỗi sau review — health_checker.py (không ghi chuyển về HEALTHY, reasons)
+
+**Thời gian sửa:** 2026-10-10 22:55 (+07)
+
+### Lỗi phát hiện
+
+**Vị trí:** `dr/health_checker.py`, hàm `run()` (dòng 62–90)
+
+**Triệu chứng:**
+1. Chỉ ghi state_change khi chuyển sang UNHEALTHY, không ghi khi quay về HEALTHY
+   - Docstring yêu cầu: "Ghi 1 dòng JSONL MỖI LẦN ĐỔI TRẠNG THÁI"
+   - Code chỉ kiểm `if new_state == "UNHEALTHY"`
+   - Không ghi khi quay về HEALTHY từ UNHEALTHY
+
+2. Lấy reason sai:
+   - Endpoint `/readyz` trả key `reasons` (list), không `reason` (string)
+   - Code `data.get("reason", "")` luôn nhận string rỗng
+   - Nên join `"; ".join(reasons)` khi fail
+
+**Tác động:**
+- tools/measure_rto.py không nhìn thấy recovery (vẫn báo UNHEALTHY)
+- Postmortem mất dữ liệu về lúc region hồi phục
+- Failure reasons không ghi rõ → khó debug
+
+### Cách sửa
+
+**Thay đổi:**
+```python
+# Cũ: chỉ ghi khi UNHEALTHY, reason từ field sai
+def probe(region: str, timeout: float) -> tuple[bool, str]:
+    ...
+    reason = data.get("reason", "")  # ← sai key (endpoint trả "reasons")
+    return (ready, reason)
+
+if new_state != state[region] and new_state == "UNHEALTHY":  # ← chỉ UNHEALTHY
+    "reason": reason if not ready else "recovered",
+    
+# Mới: ghi cả UNHEALTHY lẫn HEALTHY, reason từ "reasons" list
+def probe(region: str, timeout: float) -> tuple[bool, str]:
+    ...
+    reasons = data.get("reasons", [])  # ← đúng key
+    reason = "; ".join(reasons) if reasons else ""
+    return (ready, reason)
+
+if new_state != state[region]:  # ← cả UNHEALTHY lẫn HEALTHY
+    event_reason = reason if new_state == "UNHEALTHY" else "recovered"
+```
+
+**Chi tiết:**
+1. Sửa `probe()`: get `reasons` (list) thay vì `reason` (string), join với `"; "`
+2. Sửa `run()`: bỏ điều kiện `and new_state == "UNHEALTHY"`, ghi cả hai trạng thái
+3. Set `reason = failure_reasons` khi UNHEALTHY, `reason = "recovered"` khi HEALTHY
+
+### Kiểm chứng
+
+**Test script:**
+```python
+# Sequence per-region: ok, fail, ok, fail, fail, fail, ok, ...
+# Expected:
+#   - At fail #3: flip to UNHEALTHY with reason=mocked_failure
+#   - At ok: flip to HEALTHY with reason=recovered
+# Actual: ✓ CORRECT
+```
+
+**Output:**
+```
+=== STATE CHANGES ===
+1. Region a: -> UNHEALTHY, reason='mocked_failure_a', consecutive_fails=3
+2. Region b: -> UNHEALTHY, reason='mocked_failure_b', consecutive_fails=3
+3. Region a: -> HEALTHY, reason='recovered', consecutive_fails=0
+4. Region b: -> HEALTHY, reason='recovered', consecutive_fails=0
+5. Region a: -> UNHEALTHY, reason='mocked_failure_a', consecutive_fails=3
+6. Region b: -> UNHEALTHY, reason='mocked_failure_b', consecutive_fails=3
+
+✓ Correctly transitions to UNHEALTHY at >=3 consecutive fails
+✓ Correctly transitions back to HEALTHY with reason='recovered'
+```
+
+**pytest:**
+```
+tests/test_failover.py::test_rpo_dem_dung_so_doc_bi_mat PASSED           [ 33%]
+tests/test_failover.py::test_health_checker_can_threshold_lien_tiep PASSED [ 66%]
+tests/test_failover.py::test_failover_khong_cutover_khi_target_chua_ready PASSED [100%]
+============================== 3 passed in 0.38s ===============================
+```
+
+---
+
 ## TỔNG KẾT BƯỚC 3
 
 **Thời gian hoàn thành:** 2026-10-10 21:42 (+07)
