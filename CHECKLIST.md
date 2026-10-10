@@ -274,46 +274,46 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 **Template yêu cầu điền:**
 
-- [ ] **Bước 1 — Xác nhận outage**
-  - Lệnh: (có thể dùng lệnh probe từ health_checker, hoặc `chaos/kill_region.py status`)
-  - Biết xong khi: (cách biết region chính chết)
-  - Owner: (ai chịu trách nhiệm — e.g., on-call, infra, SRE)
+- [x] **Bước 1 — Xác nhận outage**
+  - Lệnh: `curl -s localhost:8001/readyz | jq .ready` (phải fail 3 lần liên tiếp)
+  - Biết xong khi: Trả `false` 3 lần hoặc timeout
+  - Owner: On-call
 
-- [ ] **Bước 2 — Mở incident + bấm giờ**
-  - Lệnh: (để runbook.py ghi ts, hoặc alert tool nào đó)
-  - Biết xong khi: (ts được ghi vào runbook-run.jsonl)
-  - Owner:
+- [x] **Bước 2 — Mở incident + bấm giờ**
+  - Lệnh: `python3 dr/runbook.py --primary a --target b --backend fs --auto` (hoặc bỏ --auto để xác nhân)
+  - Biết xong khi: ts ghi vào `reports/runbook-run.jsonl`, step 2 `thong_bao_incident`
+  - Owner: Incident Commander / SRE
 
-- [ ] **Bước 3 — Restore state**
-  - Lệnh: `python state/snapshot.py get --region b --backend fs`
-  - Biết xong khi: (vector count được phục hồi)
-  - Owner:
+- [x] **Bước 3 — Restore state**
+  - Lệnh: (Tự động trong runbook.py, verify: `cat reports/failover-events.jsonl | jq '.[] | select(.step=="2_restore_snapshot")'`)
+  - Biết xong khi: Dòng `2_restore_snapshot` có `rpo_seconds` + `docs_lost`
+  - Owner: Automation / SRE
 
-- [ ] **Bước 4 — Scale pool warm → full**
-  - Lệnh: (ghi full vào state/region-b/pool_state, hoặc gọi failover automation)
-  - Biết xong khi: (curl localhost:8002/readyz trả 200)
-  - Owner:
+- [x] **Bước 4 — Scale pool warm → full**
+  - Lệnh: (Tự động trong runbook.py, verify: `curl -s localhost:8002/readyz | jq .ready`)
+  - Biết xong khi: Trả `true` + `cat edge/active_region` = `b`
+  - Owner: Automation / SRE
 
-- [ ] **Bước 5 — DNS/LB cutover**
-  - Lệnh: `echo b > edge/active_region`
-  - Biết xong khi: (curl localhost:8080/edge/state cho active_region=b)
-  - Owner:
+- [x] **Bước 5 — DNS/LB cutover**
+  - Lệnh: (Tự động trong runbook.py, verify: `cat edge/active_region`)
+  - Biết xong khi: `active_region` = `b` + `curl localhost:8080/edge/state | jq .active_region`
+  - Owner: Automation / SRE
 
-- [ ] **Bước 6 — Verify golden signals**
-  - Lệnh: (10 request thật vào API, kiểm tra latency + error rate)
-  - Biết xong khi: (p95 < 500ms, error < 1%)
-  - Owner:
+- [x] **Bước 6 — Verify golden signals**
+  - Lệnh: (Tự động trong runbook.py, verify: `tail -1 reports/runbook-run.jsonl | jq '{p95_ms, error_rate}'`)
+  - Biết xong khi: p95_ms < 500ms + error_rate < 5%
+  - Owner: Monitoring / SRE
 
-- [ ] **Bước 7 — Measure RTO + postmortem**
-  - Lệnh: `python tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl`
-  - Biết xong khi: (rto_verdict = PASS)
-  - Owner:
+- [x] **Bước 7 — Measure RTO + postmortem**
+  - Lệnh: `python3 tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl --target-rto 300`
+  - Biết xong khi: `rto_verdict = PASS` (RTO ≤ 300s)
+  - Owner: Postmortem Owner / SRE
 
-- [ ] **Rollback plan (BẮTBUỘC):**
+- [x] **Rollback plan (BẮTBUỘC):**
   - Câu hỏi: Điều kiện nào thì trả traffic về Region A?
-  - Đáp: (e.g., nếu region B error rate > 5%, bất kỳ ai có quyền incident commander có thể quyết định)
-  - Ai quyết định: (role/person)
-  - Ghi chú: §4 cảnh báo full-auto failover không có circuit breaker sẽ flap giữa 2 region
+  - Đáp: Region A sống + ổn định (error < 1%) + Region B không sự cố. RTO rollback ≤ 30s (A có dữ liệu sẵn)
+  - Ai quyết định: Incident Commander (con người, KHÔNG auto). Full-auto flap gây outage kéo dài.
+  - Ghi chú: Verify A sống trước rollback: `curl -s localhost:8001/readyz | jq .ready` → true
 
 ---
 

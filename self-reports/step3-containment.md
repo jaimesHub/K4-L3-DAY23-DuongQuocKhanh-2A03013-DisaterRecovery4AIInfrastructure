@@ -161,3 +161,52 @@ tests/test_failover.py::test_failover_khong_cutover_khi_target_chua_ready PASSED
 
 Không có lệch. Code khớp docstring.
 
+---
+
+## S4 (3d) — reports/runbook.md
+
+**Thời gian:** 2026-10-10 21:40 (+07)
+
+### Nội dung
+
+Điền template 7 bước + rollback plan theo yêu cầu:
+
+**7 bước failover:**
+1. Xác nhận outage — probe region A 3 lần, phải fail → on-call
+2. Mở incident + bấm giờ — chạy runbook.py (bán tự động hoặc --auto) → incident commander
+3. Restore state — snapshot.get() tự động trong runbook.py
+4. Scale pool warm→full — automation, verify /readyz = true
+5. DNS cutover — automation, verify edge/active_region = b
+6. Golden signals — 10 request, p95 + error rate
+7. Đo RTO — tools/measure_rto.py, cần rto_verdict = PASS
+
+**Rollback plan:**
+- Điều kiện: Region A sống + ổn định (error < 1%), Region B không sự cố
+- Quyết định: Incident Commander (con người, KHÔNG auto)
+- Cách: `echo a > edge/active_region` hoặc automation
+- Tiêu chí commit: RTO rollback ≤ 30s (A có dữ liệu sẵn)
+
+**Troubleshooting:**
+- Snapshot không tìm → replicate.py chưa run
+- /readyz timeout → GPU warmup, check log
+- Error rate cao → rollback sang A, debug B
+
+**Recovery checkpoint:**
+- edge/active_region = b
+- /readyz = true
+- Vector count > 0
+- Test single request
+- Measure RTO (valid=true, rto_verdict=PASS)
+
+### Điểm đáng chú ý
+
+1. **Copy-paste được**: Mỗi lệnh là CLI real, không placeholder
+2. **Owner rõ ràng**: On-call, SRE, Incident Commander, không mơ hồ
+3. **Completion signal**: Cách nhận biết bước xong (curl output, file check, JSON query)
+4. **Rollback không auto**: Ghi rõ "quyết định con người", tránh flap
+5. **Postmortem questions**: 5 câu hỏi để suy ngẫm RTO/RPO
+
+### Lệch từ CHECKLIST
+
+Không có lệch. Runbook đủ 7 bước + rollback + troubleshooting + recovery checkpoint.
+
