@@ -384,7 +384,9 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-## BƯỚC 5 — FILL REPORTS (20 phút) — 20 điểm
+## BƯỚC 5 — FILL REPORTS (20 phút) — 20 điểm — ✅ HOÀN THÀNH 2026-10-10 22:20 (+07)
+
+> Evidence: [self-reports/step5-reports.md](self-reports/step5-reports.md)
 
 ### 5a. reports/rto-evidence.md — 10 điểm — ✅ HOÀN THÀNH
 
