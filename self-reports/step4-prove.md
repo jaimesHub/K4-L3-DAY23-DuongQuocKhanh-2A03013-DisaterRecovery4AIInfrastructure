@@ -90,14 +90,78 @@ pytest tests/test_rto_evidence.py::test_drill2_hop_le -v
 ```
 Kỳ vọng: `test_drill2_hop_le` PASSED (valid=true, warnings=[])
 
+## C2 — Đo RTO từ log
+
+### JSON measure-drill-2.json (full)
+
+```json
+{
+  "valid": true,
+  "invalid_reasons": [],
+  "warnings": [],
+  "killed_region": "a",
+  "recovered_by_region": "b",
+  "t_outage_iso": "2026-10-10T14:57:04",
+  "chaos_mode": "netblock",
+  "breakdown_seconds_from_t0": {
+    "user_thay_loi_dau_tien": 0.2,
+    "health_check_phat_hien": 19.4,
+    "dns_cutover": 26.3,
+    "request_thanh_cong_dau_tien": 28.7
+  },
+  "health_check_config": {
+    "interval_s": 5.0,
+    "threshold": 3,
+    "detect_floor_s": 15.0
+  },
+  "rto_measured_s": 28.7,
+  "rto_target_s": 300.0,
+  "rto_verdict": "PASS",
+  "rpo_at_restore_s": 8.01,
+  "docs_lost": 4,
+  "requests_failed": 14,
+  "evidence": {
+    "loadgen": "reports/drill-2-withdr.jsonl",
+    "chaos": "chaos/chaos-events.jsonl",
+    "health": "reports/health-events.jsonl",
+    "failover": "reports/failover-events.jsonl"
+  }
+}
+```
+
+### Phân tích RTO Breakdown chi tiết
+
+**1. Detection Floor (15.0s) — 52% của RTO:**
+- Health check interval=5s, threshold=3 → sớm nhất phát hiện là 5×3=15s
+- Log: `reports/health-events.jsonl:2` ghi `interval_s:5, threshold:3`
+- Actual: health detected tại +19.4s (sau 15s floor + 4.4s jitter do network polling)
+
+**2. Snapshot Restore (0.03s) — < 1% của RTO:**
+- Restore từ filesystem: rất nhanh
+- failover-events.jsonl bước 1→2: t_verify (1791644244.245) → t_restore (1791644244.275) = 0.03s
+- RPO = 8.01s do replication lag (snapshot của ~8.01s trước)
+
+**3. GPU Pool Warm-up (6.1s) — 21% của RTO:**
+- Step 4_wait_ready phải poll /readyz tới khi region B ready=true
+- failover-events.jsonl:4 ghi `waited_s:6.1`
+- Bottleneck: GPU pool transition từ "warm" → "full" + model weight loading
+
+**4. DNS/LB TTL Cache (2.4s) — 8% của RTO:**
+- EDGE_TTL_SECONDS cache ở proxy → client không liền thấy cutover
+- t_dns_cutover (26.3s) → t_first_ok (28.7s) = 2.4s cache delay
+- evidence: drill-2-withdr.jsonl:39 lần đầu ok:true từ served_by=b
+
 ### Ghi chú
 
-- runbook-run.jsonl KHÔNG được commit (bị .gitignore)
+- runbook-run.jsonl KHÔNG được commit (bị .gitignore) 
 - measure-drill-2.json KHÔNG được commit (bị .gitignore)
-- Nội dung runbook-run.jsonl dán vào self-report:
+- Nội dung runbook-run.jsonl (7 bước):
 ```
 Step 1 (xac_nhan_outage): {"alive": false, "probes_failed": 3, "health_confirmed": true, "t_health_detect": 1791644243.4794219, ...}
 Step 2 (thong_bao_incident): {"t_outage_from_chaos": 1791644224.113635, ...}
 Step 3 (scale_gpu_pool): {"ok": true, ...}
-Step 4-7: ... (xem reports/runbook-run.jsonl ban đầu)
+Step 4 (verify_state_replica): {"vector_count": 215, "weights_restored": true, ...}
+Step 5 (dns_cutover): {"active_region": "b", "cutover_ok": true, ...}
+Step 6 (verify_golden_signals): {"requests_sent": 10, "errors": 1, "p95_ms": 2257.1, "error_rate": 10.0, ...}
+Step 7 (post_incident): {"elapsed_s": 9.0, ...}
 ```
