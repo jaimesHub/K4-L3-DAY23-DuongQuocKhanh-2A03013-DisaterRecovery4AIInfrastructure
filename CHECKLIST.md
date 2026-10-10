@@ -98,7 +98,11 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-## BƯỚC 3 — CONTAINMENT (50 phút) — 65 điểm tổng (3a + 3b + 3c + 3d)
+## BƯỚC 3 — CONTAINMENT — ✅ HOÀN THÀNH 2026-10-10 21:42 (+07)
+
+> Evidence: [self-reports/step3-containment.md](self-reports/step3-containment.md)
+
+**Điểm:** 65 điểm tổng (3a=15 + 3b=20 + 3c=0 + 3d=0) — 4 sub-step, mỗi cái commit riêng
 
 ### 3a. health_checker.py (12 phút) — 15 điểm
 
