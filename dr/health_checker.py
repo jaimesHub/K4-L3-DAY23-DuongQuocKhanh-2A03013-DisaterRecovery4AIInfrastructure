@@ -29,13 +29,66 @@ URL = {"a": "http://127.0.0.1:8001", "b": "http://127.0.0.1:8002"}
 
 
 def probe(region: str, timeout: float) -> tuple[bool, str]:
-    """TODO: trả về (ready, reason). Timeout PHẢI có — netblock làm request treo mãi."""
-    raise NotImplementedError
+    """Probe /readyz endpoint. Return (ready, reason)."""
+    url = f"{URL[region]}/readyz"
+    try:
+        resp = httpx.get(url, timeout=timeout)
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                ready = data.get("ready", False)
+                reason = data.get("reason", "")
+                return (ready, reason)
+            except Exception as e:
+                return (False, f"json_error: {e}")
+        else:
+            return (False, f"http_{resp.status_code}")
+    except httpx.TimeoutException:
+        return (False, "timeout")
+    except httpx.ConnectError as e:
+        return (False, f"connect_error: {str(e)[:50]}")
+    except Exception as e:
+        return (False, f"error: {str(e)[:50]}")
 
 
 def run(interval: float, timeout: float, threshold: int, duration: float, out: pathlib.Path):
-    """TODO: vòng lặp poll + phát hiện transition + ghi JSONL."""
-    raise NotImplementedError
+    """Poll /readyz every interval seconds. Emit state_change only when threshold exceeded."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    state = {"a": "HEALTHY", "b": "HEALTHY"}
+    consecutive_fails = {"a": 0, "b": 0}
+    start_time = time.time()
+
+    while time.time() - start_time < duration:
+        for region in ["a", "b"]:
+            ready, reason = probe(region, timeout)
+
+            if ready:
+                consecutive_fails[region] = 0
+            else:
+                consecutive_fails[region] += 1
+
+            # Check if we need to transition state
+            new_state = "UNHEALTHY" if consecutive_fails[region] >= threshold else "HEALTHY"
+            if new_state != state[region] and new_state == "UNHEALTHY":
+                # Only emit when transitioning TO UNHEALTHY (state change from HEALTHY to UNHEALTHY)
+                ts = time.time()
+                event = {
+                    "ts": ts,
+                    "iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(ts)),
+                    "event": "state_change",
+                    "region": region,
+                    "to": new_state,
+                    "reason": reason if not ready else "recovered",
+                    "interval_s": interval,
+                    "threshold": threshold,
+                    "consecutive_fails": consecutive_fails[region]
+                }
+                with open(out, "a") as f:
+                    f.write(json.dumps(event) + "\n")
+                state[region] = new_state
+
+        time.sleep(interval)
 
 
 if __name__ == "__main__":

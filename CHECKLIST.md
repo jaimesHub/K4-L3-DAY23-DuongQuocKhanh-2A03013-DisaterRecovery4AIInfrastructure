@@ -108,12 +108,12 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 **Implement:**
 
-- [ ] **Hàm `probe(region: str, timeout: float) -> tuple[bool, str]:`**
+- [x] **Hàm `probe(region: str, timeout: float) -> tuple[bool, str]:`**
   - HTTP GET `http://127.0.0.1:800[1|2]/readyz` (region a→8001, region b→8002)
   - Timeout **PHẢI có** (để chặn netblock treo mãi)
   - Return: `(ready=bool, reason=str)` — nếu HTTP 200 và `ready=true` → ready, ngược lại không ready
 
-- [ ] **Hàm `run(interval, timeout, threshold, duration, out_path):`**
+- [x] **Hàm `run(interval, timeout, threshold, duration, out_path):`**
   - Vòng lặp: mỗi `interval` giây, gọi `probe()` cho region a và b
   - Đếm consecutive failures cho mỗi region
   - Khi failures ≥ `threshold` → emit `state_change` event (JSON line)
@@ -128,14 +128,14 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
     - `consecutive_fails` (số lần fail liên tiếp)
   - Chạy lúc: `python dr/health_checker.py --interval 5 --threshold 3 --duration 300 --out reports/health-events.jsonl`
 
-- [ ] **Test — anti-flap (không flip dùng 1 lần fail):**
+- [x] **Test — anti-flap (không flip dùng 1 lần fail):**
   ```bash
   pytest tests/test_failover.py::test_health_checker_can_threshold_lien_tiep -v
   ```
   - Kỳ vọng: Đầu tiên `to:UNHEALTHY`, `consecutive_fails >= 3`
   - **Điểm: 15 điểm** ✓
 
-- [ ] **Ý nghĩa RTO:** `interval × threshold` = detection floor (bạn sẽ ghi lại ở Step 4)
+- [x] **Ý nghĩa RTO:** `interval × threshold` = detection floor (bạn sẽ ghi lại ở Step 4)
   - Ví dụ: 5s × 3 = 15s sớm nhất phát hiện outage
 
 ---
