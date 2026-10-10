@@ -11,7 +11,7 @@ Runbook phải chạy được lúc 3h sáng bởi người KHÔNG viết code. 
 
 | # | Bước | Lệnh | Hoàn thành khi | Owner |
 |---|---|---|---|---|
-| 1 | **Xác nhận outage** | Probe region A: `curl -s localhost:8001/readyz \| jq .ready` | Trả về `false` 3 lần liên tiếp hoặc timeout | On-call |
+| 1 | **Xác nhận outage** | Probe region A: `curl -s localhost:8001/readyz \| jq .ready` | Trả về `false` 3 lần liên tiếp + chờ health_checker xác nhận UNHEALTHY (tối đa 60s) | On-call |
 | 2 | **Mở incident + bấm giờ** | `python3 dr/runbook.py --primary a --target b --backend fs --auto` (bắt đầu automation) | Timestamp ghi vào `reports/runbook-run.jsonl`, step 2 `thong_bao_incident` | SRE / Incident Commander |
 | 3 | **Restore state ở region phụ** | (Tự động trong runbook.py) | `cat reports/failover-events.jsonl` có dòng `step:2_restore_snapshot` | SRE / Automation |
 | 4 | **Scale pool warm→full** | (Tự động trong runbook.py) | `curl -s localhost:8002/readyz \| jq .ready` trả `true` + `curl localhost:8080/edge/state \| jq .active_region` = `"b"` | SRE / Automation |

@@ -79,9 +79,50 @@ def run(primary: str, target: str, backend: str, auto: bool) -> dict:
             fails += 1
         time.sleep(0.1)
 
+    # Step 1b: Chờ health_checker xác nhận UNHEALTHY (tối đa 60s, poll mỗi 1s)
+    t_start_wait = time.time()
+    t_health_detect = None
+    health_confirmed = False
+
+    # Lấy t_outage từ chaos-events.jsonl để biết mốc outage
+    t_outage_chaos = None
+    try:
+        chaos_events = pathlib.Path("chaos/chaos-events.jsonl").read_text().splitlines()
+        if chaos_events:
+            last_kill = json.loads(chaos_events[-1])
+            if last_kill.get("action") == "kill":
+                t_outage_chaos = last_kill.get("ts")
+    except Exception:
+        pass
+
+    # Nếu không có outage từ chaos, dùng mốc thời gian hiện tại - 5s
+    t_outage_moc = t_outage_chaos if t_outage_chaos else (time.time() - 5)
+
+    # Chờ tối đa 60s cho health check phát hiện UNHEALTHY
+    while time.time() - t_start_wait < 60:
+        try:
+            health_log = pathlib.Path("reports/health-events.jsonl")
+            if health_log.exists():
+                events = [json.loads(line) for line in health_log.read_text().splitlines() if line.strip()]
+                # Tìm state_change event: to==UNHEALTHY, region==primary, ts >= t_outage_moc
+                for ev in events:
+                    if (ev.get("event") == "state_change" and
+                        ev.get("to") == "UNHEALTHY" and
+                        ev.get("region") == primary and
+                        ev.get("ts") >= t_outage_moc):
+                        t_health_detect = ev.get("ts")
+                        health_confirmed = True
+                        break
+            if health_confirmed:
+                break
+        except Exception:
+            pass
+        time.sleep(1)
+
     # Ghi ĐÚNG 1 dòng bước 1 SAU khi probe
     # alive=True nếu có lần nào ready (fails=0), False nếu cả 3 lần fail (fails=3)
-    step(1, "xac_nhan_outage", alive=(fails == 0), probes_failed=fails)
+    step(1, "xac_nhan_outage", alive=(fails == 0), probes_failed=fails,
+         health_confirmed=health_confirmed, t_health_detect=t_health_detect)
 
     # Step 2: Thông báo incident
     t_outage_from_chaos = None
