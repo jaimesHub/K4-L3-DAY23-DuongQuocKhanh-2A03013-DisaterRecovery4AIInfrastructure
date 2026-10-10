@@ -291,13 +291,63 @@ Các file KHÔNG được commit (bị .gitignore):
 
 ---
 
-## 6. Tổng kết hoàn thành
+## 6. Đính chính sau review (Bước 6)
 
-### Trạng thái BƯỚC 5
+### Câu 2 — Làm rõ ước lượng khi hạ interval=1s
+
+**Cũ:** "RTO giảm ước lượng (KHÔNG phải số đo thực): ~9-12s trong detection phase"
+- Gây nhầm lẫn: 9-12s là detection phase new, không phải RTO reduction
+
+**Mới:** 
+- Mô phỏng chu kỳ health check:
+  - Hiện (interval=5s): chu kỳ ≈ 5s + ~1.4s overhead ≈ 6.4s, 3 chu kỳ ≈ 20.13s (đo được)
+  - Nếu interval=1s: chu kỳ ≈ 1s + ~2s overhead ≈ 3s, 3 chu kỳ ≈ 9s (floor) → thực tế 9-12s
+  - RTO mới: 28.7 − (9−12) = **17-20s** → **giảm 8-11s**
+- Ghi rõ "ƯỚC LƯỢNG, không phải đo" và giả định "chu kỳ = interval + probe timeout"
+
+**Cách kiểm:** Công thức sử dụng cùng mô hình chu kỳ cho cả Câu 2 và Action #1
+
+### Action #1 — Tính lại interval 5s → 3s
+
+**Cũ:** "~4-6s" và "~12-14s" không rõ từ đâu
+
+**Mới:**
+- Áp dụng mô hình chu kỳ giống Câu 2:
+  - Chu kỳ mới ≈ 3s (interval) + ~2s (timeout) ≈ 5.4s
+  - 3 chu kỳ ≈ 16s (so với 20.13s hiện tại)
+  - RTO mới ≈ 28.7 − 4 = **~25s** → **RTO giảm ~4s** (từ 28.7s → ~25s hoặc 13-14s tổng)
+- Ghi rõ công thức: "Chu kỳ ≈ 3 + 2 + ε ≈ 5.4s ⇒ 3 fail ≈ 16s ⇒ reduction ≈ 4-5s"
+
+**Cách kiểm:** `date` command cho giờ (+07 chuẩn): `date` or `date -u` rồi convert +7h
+
+### 5 whys #4 & #5 — Thay "vài trăm ms" bằng số đo thật
+
+**Cũ (5 whys #5):** "vài trăm ms cho tới khi edge proxy refresh, sau đó vài trăm ms nữa"
+
+**Mới:** 
+- Thay số cụ thể từ log: "Từ cutover (failover-events.jsonl:5, ts=1791644250.389384) đến first ok:true từ b (drill-2-withdr.jsonl:39, ts=1791644252.79165), khoảng cách = 2.402s = **~2.4s**"
+- Giữ nguyên warm-up 6.1s từ failover-events.jsonl:4 (đã đúng)
+
+**Cách kiểm:** `python3 -c "print(1791644252.79165 - 1791644250.389384)"` → 2.402266 ≈ 2.4s
+
+### Tổng ước lượng giảm RTO (cần nhất quán)
+
+**Nếu thực hiện cả 3 action:**
+- Action #1 (interval 5→3s): ~4s
+- Action #2 (warmup 6→3-4s): ~2-3s
+- Action #3 (DNS TTL 5→1s): ~1-2s
+- **Tổng ước lượng: ~7-9s** (RTO từ 28.7s → ~20-22s)
+- Bottleneck vẫn là detection + warmup (chiếm ~91% hiện tại)
+
+---
+
+## 7. Tổng kết hoàn thành
+
+### Trạng thái BƯỚC 5 + 6
 
 - 5a: reports/rto-evidence.md ✓ HOÀN THÀNH (commit ab524c4)
-- 5b: reports/postmortem.md ✓ HOÀN THÀNH (commit 851b38d)
-- 5c: self-reports/step5-reports.md + CHECKLIST.md update → CHUẨN BỊ (commit sau)
+- 5b: reports/postmortem.md ✓ HOÀN THÀNH (commit 851b38d) + SỬA BƯỚC 6 (Câu 2, Action #1, 5 whys)
+- 5c: self-reports/step5-reports.md + CHECKLIST.md update ✓ HOÀN THÀNH (commit mới Bước 6)
 
 ### Test Status
 

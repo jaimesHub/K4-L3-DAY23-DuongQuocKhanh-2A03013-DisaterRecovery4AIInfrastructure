@@ -46,14 +46,15 @@ Hai thành phần này chiếm 91% RTO tổng cộng ((20.13+6.11)/28.67 = 91%).
 4. **Tại sao GPU pool warm-up mất 6.1s?**
    - A: serving/app.py:21 ghi WARMUP_SECONDS=6 (dòng 21). Khi pool_state chuyển từ "warm" → "full" (ở step 3_scale_pool), serving API ghi timestamp và chớp 6s warm-up timer (mô phỏng GPU pool warm-up) trước khi trả `ready=true`. Trong lab này, 6s mô phỏng thời gian chuẩn bị pool cho sản xuất.
 
-5. **Tại sao DNS/LB TTL cache chỉ mất 2.4s?**
-   - A: edge/proxy.py:16 ghi EDGE_TTL_SECONDS=5. Khi runbook ghi target vào edge/active_region ở step 5_dns_cutover, edge proxy (resolve() function ở dòng 25) chỉ đọc lại file nếu cache đã hết hạn (5s). Client mới gửi request sẽ gặp cache cũ vài trăm ms cho tới khi edge proxy refresh, sau đó vài trăm ms nữa cho routing tới region B thành công. Thực tế: ~2.4s từ cutover tới first ok:true.
+5. **Tại sao DNS/LB TTL cache mất 2.4s từ cutover tới first ok:true?**
+   - A: edge/proxy.py:16 ghi EDGE_TTL_SECONDS=5. Khi runbook ghi target vào edge/active_region ở step 5_dns_cutover (ts=1791644250.389384), edge proxy (resolve() function ở dòng 25-31) chỉ đọc lại file nếu cache hết hạn. 
+   - **Đo từ log:** Từ cutover (failover-events.jsonl:5, ts=1791644250.389384) đến first ok:true từ region b (drill-2-withdr.jsonl:39, ts=1791644252.79165), khoảng cách = 2.402s = **~2.4s**. Thành phần này bao gồm: cache miss latency + routing latency + request execution time ở region B.
 
 ## 4. Action items (có owner + deadline + ước lượng giảm RTO)
 
 | # | Action | Owner | Deadline | Giảm RTO (s) | Ghi chú |
 |---|---|---|---|---|---|
-| 1 | Giảm health check interval từ 5s → 3s | SRE/Infra | 1 tuần | ~4-6s | Detection floor mới ≈ 9s (3×3); thực tế ~12-14s; risk: flapping từ network jitter; threshold nên giữ ≥3 |
+| 1 | Giảm health check interval từ 5s → 3s | SRE/Infra | 1 tuần | ~4s | Chu kỳ mới ≈ 3 + 2 ≈ 5.4s; 3 chu kỳ ≈ 16s (so với 20.13s); RTO giảm ~4-5s (28.7 − 16 ≈ 13s). Risk: flapping từ network jitter; threshold nên giữ ≥3 |
 | 2 | Tối ưu GPU pool warm-up: hạ WARMUP_SECONDS từ 6s → 3-4s | Serving/ML Ops | 2 tuần | ~2-3s | Giảm warm-up timeout; trade-off: cold startup risk vs. memory overhead |
 | 3 | Hạ DNS/LB TTL cache từ 5s → 1s | Networking/Edge | 3 ngày | ~1-2s | Tăng cache miss rate nhưng không nghiêm trọng; trade-off: nhỏ |
 
@@ -75,18 +76,25 @@ Hai thành phần này chiếm 91% RTO tổng cộng ((20.13+6.11)/28.67 = 91%).
 
 ### Câu 2: Nếu hạ interval xuống 1s, RTO giảm mấy giây? Trả giá gì?
 
-**Trả lời:**
-- **RTO giảm ước lượng (KHÔNG phải số đo thực):** ~9-12s trong detection phase
-  - **Phương pháp:** Hiện tại, detection floor lý thuyết = 15.0s (5s × 3). Thực tế 20.13s do probe timeout (~2s) và overhead (~5s).
-  - **Nếu interval=1s:** 3 lần fail liên tiếp × (1s interval + ~2s probe timeout + probe b) ≈ 3 chu kỳ × (~3-4s) ≈ 9-12s (thay vì 20.13s hiện tại)
-  - **RTO mới ước lượng:** 28.7 - (~9-12s) = **~17-20s** (thay vì 28.7s)
-  
-- **Giá phải trả:**
-  1. **Flapping risk:** Network jitter + GC pauses sẽ gây false positive UNHEALTHY → failover → failback, làm users bị phá vỡ session/cache
-  2. **CPU/I/O overhead:** Poll mỗi 1s × 2 region = 2 HTTP GET/s; scale tới 1000 servers → 2000 req/s quay lại health checker endpoint; có thể gây bottleneck ở health checker server
-  3. **False positives từ cloud provider:** Transient routing delays, temporary DNS timeouts sẽ trigger failover không cần thiết
+**Trả lời (ƯỚC LƯỢNG, không phải số đo):**
 
-**Kết luận:** Không khuyên hạ xuống 1s nếu không có monitoring + rollback automation chặt chẽ. Giảm xuống 2-3s có thể acceptable (detect ~6-9s) với proper tuning của timeout/threshold.
+- **Model chu kỳ health check:**
+  - Mỗi chu kỳ = interval + probe timeout (khi region down)
+  - Hiện tại (interval=5s): một chu kỳ ≈ 5s (sleep) + ~1.4s (probe timeout + run) ≈ 6.4s
+  - Detection = 3 chu kỳ × 6.4s = 19.2s ≈ 20.13s (measured)
+
+- **Nếu hạ interval=1s:**
+  - Một chu kỳ ≈ 1s (sleep) + ~2s (probe timeout A stalled + probe B) ≈ 3s
+  - Detection floor ước lượng = 3 chu kỳ × 3s = **~9s** (so với 15s lý thuyết)
+  - Với overhead tương tự (runbook confirm + failover): **~9-12s** (so với 20.13s hiện tại)
+  - **RTO mới ước lượng:** 28.7 − (9−12) = **~17-20s** (giảm **8-11s**)
+
+- **Giá phải trả:**
+  1. **Flapping risk:** Network jitter, GC pauses, transient timeouts sẽ trigger false UNHEALTHY → failover → failback liên tiếp
+  2. **CPU/I/O overhead:** Poll 1s × 2 region = 2 HTTP GET/s per health checker; scale 1000 servers → 2000 req/s; bottleneck
+  3. **False positives từ cloud provider:** Transient routing delays, temporary DNS timeouts
+
+**Kết luận:** Giảm xuống 1s có thể lý thuyết nhưng rủi ro cao. 2-3s hợp lý hơn (detect ~6-9s, RTO → ~20-23s).
 
 ### Câu 3: Nếu outage kéo dài 6 giờ và region chính mất dữ liệu vĩnh viễn, `docs_lost=4` có nghĩa gì?
 
