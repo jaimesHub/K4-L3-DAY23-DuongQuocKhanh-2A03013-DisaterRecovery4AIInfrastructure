@@ -61,11 +61,13 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-## BƯỚC 2 — RED TEAM (25 phút) — 15 điểm (test_drill1_ton_tai_va_khong_phuc_hoi)
+## BƯỚC 2 — RED TEAM (25 phút) — 15 điểm (test_drill1_ton_tai_va_khong_phuc_hoi) — ✅ HOÀN THÀNH 2026-10-10 21:03 (+07)
+
+> Evidence: [self-reports/step2-red-team.md](self-reports/step2-red-team.md)
 
 **Chứng minh baseline không tự phục hồi:**
 
-- [ ] **Chạy baseline drill (tấn công Region A, không có DR):**
+- [x] **Chạy baseline drill (tấn công Region A, không có DR):**
   ```bash
   python3 loadgen/traffic.py --duration 40 --rps 2 --out reports/drill-1-nodr.jsonl &
   sleep 8
@@ -75,20 +77,20 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
   - Ghi chú: `netblock --mock` = SIGSTOP (process treo, không kill); đợi load generator kết thúc
   - Output: `reports/drill-1-nodr.jsonl` (JSONL log mỗi request)
 
-- [ ] **Đo RTO — mong đợi NO_RECOVERY:**
+- [x] **Đo RTO — mong đợi NO_RECOVERY:**
   ```bash
   python3 tools/measure_rto.py --loadgen reports/drill-1-nodr.jsonl --target-rto 300
   ```
   - Kỳ vọng: `rto_verdict: NO_RECOVERY`, `requests_failed > 0`
   - Output file: `reports/measure-drill-1.json`
 
-- [ ] **Restore Region A (BẮTBUỘC `--backend bare`):**
+- [x] **Restore Region A (BẮTBUỘC `--backend bare`):**
   ```bash
   python3 chaos/kill_region.py restore --region a --backend bare
   ```
   - Kiểm tra: `curl localhost:8001/healthz` trả về 200
 
-- [ ] **Test gate — baseline:**
+- [x] **Test gate — baseline:**
   ```bash
   pytest tests/test_rto_evidence.py::test_drill1_ton_tai_va_khong_phuc_hoi -v
   ```
