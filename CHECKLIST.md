@@ -497,16 +497,18 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-## BƯỚC 6 — VERIFY & SUBMIT (5 phút) — 0 điểm (gate cuối)
+## BƯỚC 6 — VERIFY & SUBMIT — ✅ HOÀN THÀNH 2026-10-10 15:18 (+07)
 
-- [ ] **Chạy toàn bộ pytest:**
+> Evidence: [self-reports/step6-verify.md](self-reports/step6-verify.md)
+
+- [x] **Chạy toàn bộ pytest:**
   ```bash
   python3 -m pytest tests/ -v
   ```
   - Kỳ vọng: Tất cả test xanh (PASSED)
-  - Nếu FAILED → debug theo error message (xem phần Hard-Fail Conditions dưới)
+  - ✅ **RESULT:** 13/13 tests PASSED
 
-- [ ] **Kiểm tra không có hard-fail:**
+- [x] **Kiểm tra không có hard-fail:**
   - ✅ `measure_rto.py` trả `valid:true` (test `test_drill2_hop_le`)
   - ✅ RTO/RPO trong rto-evidence.md khớp log (test `test_so_trong_bang_khop_voi_so_trong_log`)
   - ✅ Không có double outage (test `test_chaos_khong_giet_ca_hai_region`)
