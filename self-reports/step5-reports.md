@@ -220,6 +220,77 @@ Các file KHÔNG được commit (bị .gitignore):
 
 ---
 
+## 5. Đính chính sau review (Bước 5)
+
+### Lỗi 1: Timeline — Resolved time sai
+
+**Lỗi:** 2026-10-10T14:57:33 (sai)
+**Sửa:** 2026-10-10T14:57:32 (đúng)
+**Cách kiểm:** `python3 -c "import time; print(time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(1791644252.789)))"`
+- Timestamp thật: 1791644252.789 → gmtime = 14:57:32 (ghi chú: :789 đó là milliseconds, gmtime cắt giây)
+
+### Lỗi 2: Serving/app.py typo + WARMUP_SECONDS explanation
+
+**Lỗi:** "Serving/app.py.py:21" (typo) + "GPU kernel compilation, model loading from disk, và memory allocation" (quá cụ thể cho simulation)
+**Sửa:** 
+- Typo: "serving/app.py:21" (dòng 21 thật: WARMUP = float(..., "6"))
+- Explanation: "mô phỏng GPU pool warm-up timer (WARMUP_SECONDS=6 in serving/app.py:21)"
+- Ghi chú: "Trong lab này, 6s mô phỏng thời gian chuẩn bị pool cho sản xuất"
+
+**Cách kiểm:** `grep -n "WARMUP" serving/app.py`
+```
+21	WARMUP = float(os.environ.get("WARMUP_SECONDS", "6"))
+```
+
+### Lỗi 3: DNS/TTL TTL explanation sai (TCP renegotiation)
+
+**Lỗi:** "TCP connection renegotiation" (sai lý do)
+**Sửa:** Explanation từ edge/proxy.py:25 resolve() function — cache chỉ đọc lại file sau TTL hết hạn
+**Cách kiểm:** Kiểm thực tế: t_cutover (1791644250.389) → t_recovered (1791644252.789) = 2.4s ✓
+
+### Lỗi 4: Detection "5 lần poll mỗi 5s" sai
+
+**Lỗi:** "5 lần poll mỗi 5s, lần thứ 3 fail thì flag UNHEALTHY" (confusing)
+**Sửa:** "interval=5s × threshold=3 lần fail liên tiếp" (clear)
+**Cách kiểm:** `grep -n "threshold" dr/health_checker.py` → line 77 check `consecutive_fails >= threshold`
+
+### Lỗi 5: Sentence 2 (1s interval) — không có phương pháp ước lượng
+
+**Lỗi:** "RTO giảm ước lượng: ~5-6 giây" (không rõ từ đâu)
+**Sửa:** ESTIMATE với phương pháp rõ:
+- Detection floor hiện: 15.0s (5×3)
+- Nếu 1s: 3 chu kỳ × (~3-4s) ≈ 9-12s
+- RTO giảm: ~9-12s thay vì ~5-6s (chính xác hơn)
+- RTO mới: 28.7 - 9-12 = 17-20s (thay vì 22-23s)
+
+### Lỗi 6: Sentence 3 (replication) — ảnh hưởng RTO
+
+**Lỗi:** "Tăng tần suất replicate... RTO giảm thêm ~3-5s" (WRONG — replication ảnh hưởng RPO, không RTO)
+**Sửa:** "Increase replication frequency từ 30s → 10s (giảm RPO từ 8.01s → ~2-3s; KHÔNG ảnh hưởng RTO đáng kể)"
+
+### Lỗi 7: RTO breakdown table — 2 dòng detect (confusion)
+
+**Lỗi:** Bảng rto-evidence.md có cả:
+- "Health-check detect floor | 15.0" 
+- "Detection + overhead thực tế | 20.13"
+→ Đọc lướt thành 15 + 20.13 + 0.03 + 6.1 + 2.4 = 43.7 (WRONG)
+
+**Sửa:** Bảng có đúng 4 thành phần:
+| Thành phần | Giây |
+| Detection (kill → failover start) | 20.13 |
+| Snapshot restore | 0.03 |
+| GPU pool warm-up | 6.11 |
+| DNS/LB TTL cache | 2.40 |
+| **TỔNG** | **28.67s ≈ 28.7s** |
+
+**Ghi chú riêng:** Detect floor lý thuyết 15.0s (5×3) **đã nằm trong** Detection 20.13s, không cộng riêng
+
+**Cách kiểm:** 
+- `grep -n "Detection\|snapshot\|warm-up\|DNS" reports/rto-evidence.md` → verify dòng
+- `python3 -c "print(20.13 + 0.03 + 6.11 + 2.40)"` → 28.67 ✓
+
+---
+
 ## 6. Tổng kết hoàn thành
 
 ### Trạng thái BƯỚC 5

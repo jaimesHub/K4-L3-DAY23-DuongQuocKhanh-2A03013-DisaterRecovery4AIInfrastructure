@@ -10,7 +10,7 @@ Blameless postmortem: câu hỏi là "hệ thống/process nào cho phép chuy�
 | 2026-10-10T14:57:04 | User đầu tiên bị ảnh hưởng (ok:false) | `reports/drill-2-withdr.jsonl:25` |
 | 2026-10-10T14:57:23 | Health check phát hiện UNHEALTHY (region a) | `reports/health-events.jsonl:2` |
 | 2026-10-10T14:57:30 | DNS cutover thực thi (failover step 5) | `reports/failover-events.jsonl:5` |
-| 2026-10-10T14:57:33 | Resolved (first ok:true từ region b) | `reports/drill-2-withdr.jsonl:39` |
+| 2026-10-10T14:57:32 | Resolved (first ok:true từ region b) | `reports/drill-2-withdr.jsonl:39` |
 
 ## 2. RTO/RPO đo được vs mục tiêu — gap ở bước nào?
 
@@ -22,13 +22,13 @@ Blameless postmortem: câu hỏi là "hệ thống/process nào cho phép chuy�
 - **RPO đo được:** 8.01s (4 docs bị mất)
 - **Gap:** 291.99s (mục tiêu vượt quá được)
 
-**Bước tốn nhiều giây nhất:** Detection (20.13s = 70% RTO) — gồm:
-  - 15.0s health check detect floor (interval=5s × threshold=3)
-  - 5.13s overhead (probe timeout, runbook handoff, polling lag)
+**Bước tốn nhiều giây nhất:** Detection phase (20.13s = 70% RTO) — gồm:
+  - 15.0s health check detect floor lý thuyết (interval=5s × threshold=3)
+  - ~5s probe timeout + runbook confirm + handoff lag
   
-**Bước thứ hai:** GPU pool warm-up (6.1s = 21% RTO)
+**Bước thứ hai:** GPU pool warm-up (6.11s = 21% RTO)
 
-Hai thành phần này chiếm 91% RTO tổng cộng.
+Hai thành phần này chiếm 91% RTO tổng cộng ((20.13+6.11)/28.67 = 91%).
 
 ## 3. Root cause (5 whys) — Blameless
 
@@ -44,17 +44,17 @@ Hai thành phần này chiếm 91% RTO tổng cộng.
    - A: Hệ thống đã thiết kế để detection phải chắc chắn (threshold=3). Nếu giảm threshold xuống 1 lần fail, risk flapping tăng (users sẽ thấy failover → failback loop nếu network có jitter). Nhân với interval=5s, soonest detection = 5s (1 poll fail) nhưng không safe. Nên 5×3=15s là soonest safe detection.
 
 4. **Tại sao GPU pool warm-up mất 6.1s?**
-   - A: Serving/app.py.py:21 ghi WARMUP=6s. Khi pool_state chuyển từ "warm" → "full" (ở step 3_scale_pool), serving API ghi timestamp và chớp 6s warm-up timer trước khi trả `ready=true`. 6s đó chứa GPU kernel compilation, model loading from disk, và memory allocation.
+   - A: serving/app.py:21 ghi WARMUP_SECONDS=6 (dòng 21). Khi pool_state chuyển từ "warm" → "full" (ở step 3_scale_pool), serving API ghi timestamp và chớp 6s warm-up timer (mô phỏng GPU pool warm-up) trước khi trả `ready=true`. Trong lab này, 6s mô phỏng thời gian chuẩn bị pool cho sản xuất.
 
 5. **Tại sao DNS/LB TTL cache chỉ mất 2.4s?**
-   - A: EDGE_TTL_SECONDS=5s. Khi runbook ghi target vào edge/active_region ở step 5_dns_cutover, edge proxy vẫn cache upstream cũ (region a) cho tới TTL expired. Client không liền thấy routing change; phải chờ tối thiểu 1-2s cho cache re-resolve, cộng với TCP connection renegotiation.
+   - A: edge/proxy.py:16 ghi EDGE_TTL_SECONDS=5. Khi runbook ghi target vào edge/active_region ở step 5_dns_cutover, edge proxy (resolve() function ở dòng 25) chỉ đọc lại file nếu cache đã hết hạn (5s). Client mới gửi request sẽ gặp cache cũ vài trăm ms cho tới khi edge proxy refresh, sau đó vài trăm ms nữa cho routing tới region B thành công. Thực tế: ~2.4s từ cutover tới first ok:true.
 
 ## 4. Action items (có owner + deadline + ước lượng giảm RTO)
 
 | # | Action | Owner | Deadline | Giảm RTO (s) | Ghi chú |
 |---|---|---|---|---|---|
-| 1 | Giảm health check interval từ 5s → 3s | SRE/Infra | 1 tuần | ~5-6s | Detect floor = 3×3=9s (ước lượng: tối thiểu -4s từ detection, +1s từ polling overhead); risk: flapping từ network jitter |
-| 2 | Tối ưu GPU pool warm-up: hạ WARMUP_SECONDS từ 6s → 3-4s | Serving/ML Ops | 2 tuần | ~2-3s | Cần test GPU kernel caching, model prefetching; trade-off: cold startup vs. memory overhead |
+| 1 | Giảm health check interval từ 5s → 3s | SRE/Infra | 1 tuần | ~4-6s | Detection floor mới ≈ 9s (3×3); thực tế ~12-14s; risk: flapping từ network jitter; threshold nên giữ ≥3 |
+| 2 | Tối ưu GPU pool warm-up: hạ WARMUP_SECONDS từ 6s → 3-4s | Serving/ML Ops | 2 tuần | ~2-3s | Giảm warm-up timeout; trade-off: cold startup risk vs. memory overhead |
 | 3 | Hạ DNS/LB TTL cache từ 5s → 1s | Networking/Edge | 3 ngày | ~1-2s | Tăng cache miss rate nhưng không nghiêm trọng; trade-off: nhỏ |
 
 **Tổng ước lượng giảm RTO nếu thực hiện cả 3:** ~8-11s (RTO từ 28.7s → ~17-21s). Bottleneck vẫn sẽ là detection + warmup.
@@ -69,17 +69,17 @@ Hai thành phần này chiếm 91% RTO tổng cộng.
 - % RTO: 20.13 / 28.7 = **70.2%** (làm tròn: **70%**)
 
 **Giải thích:**
-- 15.0s là soonest health checker có thể phát hiện outage (5 lần poll mỗi 5s, lần thứ 3 fail thì flag UNHEALTHY)
-- Thực tế là 20.13s vì runbook phải confirm, probe timeout, và handoff giữa các thành phần làm chậm thêm 5.13s
-- 70% của RTO tổng cộng bị "bê" bởi detect floor, làm nó cùng với warmup trở thành bottleneck chính
+- 15.0s là soonest health checker có thể phát hiện outage lý thuyết (interval=5s × threshold=3 lần fail liên tiếp)
+- Thực tế là 20.13s vì probe timeout (~2s mỗi lần) + runbook confirm + handoff giữa các thành phần làm chậm thêm ~5s
+- Detection phase (20.13s) chiếm 70% RTO tổng cộng, cùng với GPU warmup (6.1s) làm thành bottleneck chính
 
 ### Câu 2: Nếu hạ interval xuống 1s, RTO giảm mấy giây? Trả giá gì?
 
 **Trả lời:**
-- **RTO giảm ước lượng:** ~5-6 giây
-  - Detect floor mới = 1s × 3 = 3s (giảm từ 15s)
-  - Overhead vẫn ~5s (probe timeout, runbook confirm) → detection thực tế ~ 8-9s
-  - RTO mới ~ 22-23s (từ 28.7s)
+- **RTO giảm ước lượng (KHÔNG phải số đo thực):** ~9-12s trong detection phase
+  - **Phương pháp:** Hiện tại, detection floor lý thuyết = 15.0s (5s × 3). Thực tế 20.13s do probe timeout (~2s) và overhead (~5s).
+  - **Nếu interval=1s:** 3 lần fail liên tiếp × (1s interval + ~2s probe timeout + probe b) ≈ 3 chu kỳ × (~3-4s) ≈ 9-12s (thay vì 20.13s hiện tại)
+  - **RTO mới ước lượng:** 28.7 - (~9-12s) = **~17-20s** (thay vì 28.7s)
   
 - **Giá phải trả:**
   1. **Flapping risk:** Network jitter + GC pauses sẽ gây false positive UNHEALTHY → failover → failback, làm users bị phá vỡ session/cache
@@ -100,7 +100,7 @@ Hai thành phần này chiếm 91% RTO tổng cộng.
   - **SLA impact:** Nếu SLA promise "≤ 5 min RPO", 8.01s vẫn OK; nếu promise "zero data loss", KPI failed
   
 - **Mitigation:**
-  - Increase replication frequency từ 30s → 10s (snapshot lạc hơn 3×, RTO giảm thêm ~3-5s)
+  - Increase replication frequency từ 30s → 10s (giảm RPO từ 8.01s → ~2-3s; **KHÔNG ảnh hưởng RTO đáng kể**)
   - Duy trì replicated write-ahead logs ở region phụ (WAL từ region chính; nếu region chính chết, WAL cho phép point-in-time recovery, docs_lost → 0)
   - Implement cross-region dual-write (active-active) để zero-loss, nhưng trade-off: conflict resolution complexity
 
