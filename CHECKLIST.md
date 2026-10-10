@@ -497,7 +497,7 @@ Danh sách công việc để hoàn thành bài lab. Mỗi bước ghi rõ: file
 
 ---
 
-## BƯỚC 6 — VERIFY & SUBMIT — ✅ HOÀN THÀNH 2026-10-10 15:18 (+07)
+## BƯỚC 6 — VERIFY & SUBMIT — ✅ HOÀN THÀNH 2026-10-10 22:40 (+07)
 
 > Evidence: [self-reports/step6-verify.md](self-reports/step6-verify.md)
 
