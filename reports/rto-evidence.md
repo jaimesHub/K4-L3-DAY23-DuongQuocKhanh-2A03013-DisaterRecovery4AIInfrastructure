@@ -32,9 +32,14 @@ Mỗi con số dưới đây đều được truy vết từ một dòng log th�
 
 | Thành phần | Giây | Nó đến từ đâu | Giảm được bằng cách nào |
 |---|---|---|---|
-| Health-check detect floor | 15.0 (5s × 3) | `reports/health-events.jsonl:2` — `interval_s: 5.0, threshold: 3` | Giảm interval xuống ≤1s (cần cân nhắc flapping risk) |
-| Detection + overhead thực tế | 20.13 | Từ kill (`chaos/chaos-events.jsonl:3`) đến failover start (`reports/failover-events.jsonl:1`) | Poll timeout + handoff lag |
+| Detection (kill → failover start) | 20.13 | Từ `chaos/chaos-events.jsonl:3` đến `reports/failover-events.jsonl:1` | Giảm interval + probe timeout tuning |
 | Snapshot restore | 0.03 | `reports/failover-events.jsonl:1→2` | Filesystem store đã tối ưu |
-| GPU pool warm-up | 6.1 | `reports/failover-events.jsonl:4` — `waited_s:6.1` | Hạ WARMUP_SECONDS từ 6 xuống 3-4s |
-| DNS/LB TTL cache | 2.4 | Từ DNS cutover (`reports/failover-events.jsonl:5`) đến first ok:true (`reports/drill-2-withdr.jsonl:39`) | Hạ EDGE_TTL_SECONDS từ 5 xuống 1s |
-| **TỔNG** | **28.7s** | Phải ≈ RTO đo được (28.67s ≈ 28.7s ✓) | **Bottleneck: Detection (70%) + Warmup (21%)** |
+| GPU pool warm-up | 6.11 | `reports/failover-events.jsonl:4` — `waited_s:6.1` | Hạ WARMUP_SECONDS từ 6 xuống 3-4s |
+| DNS/LB TTL cache | 2.40 | Từ `reports/failover-events.jsonl:5` đến `reports/drill-2-withdr.jsonl:39` | Hạ EDGE_TTL_SECONDS từ 5 xuống 1s |
+| **TỔNG** | **28.67s ≈ 28.7s** | ✓ Khớp với RTO đo được | **Bottleneck: Detection (70%) + Warmup (21%)** |
+
+**Ghi chú về detect floor lý thuyết:**
+- Health check interval = 5s, threshold = 3 → detect floor lý thuyết = 5 × 3 = 15.0s
+- 15.0s này **đã được tính vào** Detection 20.13s (phần đầu của detection phase)
+- 5.13s còn lại = probe timeout + runbook confirm + handoff lag
+- **Không cộng 15.0s riêng biệt** vào tổng RTO (sẽ thành 43.7s, sai)
